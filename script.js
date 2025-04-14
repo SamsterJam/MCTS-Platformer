@@ -84,6 +84,39 @@ var Game = /** @class */ (function () {
         this.canvas.addEventListener('contextmenu', function (e) {
             e.preventDefault();
         });
+        // Block Menu
+        var blockButtons = this.toolbar.querySelectorAll('.block-btn');
+        blockButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                blockButtons.forEach(function (btn) { return btn.classList.remove('selected'); });
+                _this.playBtn.classList.add('selected');
+                var type = button.getAttribute('data-type');
+                if (type === 'player')
+                    _this.selectedBlock = BlockType.PLAYER;
+                else if (type === 'platform')
+                    _this.selectedBlock = BlockType.PLATFORM;
+                else if (type === 'obstacle')
+                    _this.selectedBlock = BlockType.OBSTACLE;
+                else if (type === 'goal')
+                    _this.selectedBlock = BlockType.GOAL;
+                else if (type === 'eraser')
+                    _this.selectedBlock = BlockType.EMPTY;
+            });
+        });
+        blockButtons[1].classList.add('selected');
+        this.playBtn.addEventListener('click', function () {
+            if (_this.mode === GameMode.EDIT) {
+                if (_this.validateLevel()) {
+                    _this.setMode(GameMode.PLAY);
+                }
+                else {
+                    alert('Level must have exactly one player and at least one goal!');
+                }
+            }
+            else {
+                _this.setMode(GameMode.EDIT);
+            }
+        });
     };
     Game.prototype.gameLoop = function () {
         console.log("TODO: Gameloop");
@@ -93,6 +126,10 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.handleGridClick = function (e) {
         console.log("TODO: handleGridClick");
+    };
+    Game.prototype.validateLevel = function () {
+        console.log("TODO: validateLevel");
+        return true;
     };
     return Game;
 }());

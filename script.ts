@@ -101,6 +101,37 @@ class Game {
     this.canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
     });
+
+
+    // Block Menu
+    const blockButtons = this.toolbar.querySelectorAll('.block-btn');
+    blockButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        blockButtons.forEach(btn => btn.classList.remove('selected'));
+        this.playBtn.classList.add('selected');
+
+        const type = button.getAttribute('data-type');
+        if (type === 'player') this.selectedBlock = BlockType.PLAYER;
+        else if (type === 'platform') this.selectedBlock = BlockType.PLATFORM;
+        else if (type === 'obstacle') this.selectedBlock = BlockType.OBSTACLE;
+        else if (type === 'goal') this.selectedBlock = BlockType.GOAL;
+        else if (type === 'eraser') this.selectedBlock = BlockType.EMPTY;
+      });
+    });
+
+    blockButtons[1].classList.add('selected');
+
+    this.playBtn.addEventListener('click', () => {
+      if(this.mode === GameMode.EDIT) {
+        if (this.validateLevel()) {
+          this.setMode(GameMode.PLAY);
+        } else {
+          alert('Level must have exactly one player and at least one goal!');
+        }
+      } else {
+        this.setMode(GameMode.EDIT);
+      }
+    });
   }
 
   gameLoop(): void {
@@ -113,6 +144,11 @@ class Game {
 
   handleGridClick(e: MouseEvent): void {
     console.log(`TODO: handleGridClick`);
+  }
+
+  validateLevel(): boolean {
+    console.log(`TODO: validateLevel`);
+    return true;
   }
 }
 
