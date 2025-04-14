@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCTS Platformer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="toolbar" id="toolbar">
+        <div class="block-btn" style="background-color: blue;" data-type="player"></div>
+        <div class="block-btn" style="background-color: green;" data-type="platform"></div>
+        <div class="block-btn" style="background-color: red;" data-type="obstacle"></div>
+        <div class="block-btn" style="background-color: gold;" data-type="goal"></div>
+        <div class="block-btn" style="background-color: #fff; position: relative;" data-type="eraser"></div>
+    </div>
+    
+    <div class="play-btn" id="playBtn">PLAY</div>
+    
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
