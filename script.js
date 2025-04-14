@@ -54,11 +54,48 @@ var Game = /** @class */ (function () {
             this.grid.push(row);
         }
     };
+    Game.prototype.setupEvents = function () {
+        var _this = this;
+        // Keyboard
+        window.addEventListener('keydown', function (e) {
+            _this.keys[e.code] = true;
+        });
+        window.addEventListener('keyup', function (e) {
+            _this.keys[e.code] = false;
+            if (e.code === 'Escape' && _this.mode === GameMode.PLAY) {
+                _this.setMode(GameMode.EDIT);
+            }
+        });
+        // Mouse
+        this.canvas.addEventListener('mousedown', function (e) {
+            if (_this.mode !== GameMode.EDIT)
+                return;
+            _this.mouseDown = true;
+            _this.handleGridClick(e);
+        });
+        this.canvas.addEventListener('mousemove', function (e) {
+            if (_this.mode !== GameMode.EDIT || !_this.mouseDown)
+                return;
+            _this.handleGridClick(e);
+        });
+        this.canvas.addEventListener('mouseup', function (e) {
+            _this.mouseDown = false;
+        });
+        this.canvas.addEventListener('contextmenu', function (e) {
+            e.preventDefault();
+        });
+    };
     Game.prototype.gameLoop = function () {
         console.log("TODO: Gameloop");
     };
-    Game.prototype.setupEvents = function () {
-        console.log("TODO: Event Listener Setup");
+    Game.prototype.setMode = function (mode) {
+        console.log("TODO: setMode");
+    };
+    Game.prototype.handleGridClick = function (e) {
+        console.log("TODO: handleGridClick");
     };
     return Game;
 }());
+window.addEventListener('load', function () {
+    new Game();
+});

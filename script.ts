@@ -67,12 +67,56 @@ class Game {
     }
   }
 
+  setupEvents(): void {
+    // Keyboard
+    window.addEventListener('keydown', (e) => {
+      this.keys[e.code] = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.code] = false;
+
+      if (e.code === 'Escape' && this.mode === GameMode.PLAY) {
+        this.setMode(GameMode.EDIT);
+      }
+    });
+
+    // Mouse
+    this.canvas.addEventListener('mousedown', (e) => {
+      if (this.mode !== GameMode.EDIT) return;
+
+      this.mouseDown = true;
+      this.handleGridClick(e);
+    });
+
+    this.canvas.addEventListener('mousemove', (e) => {
+      if (this.mode !== GameMode.EDIT || !this.mouseDown) return;
+      this.handleGridClick(e);
+    });
+
+    this.canvas.addEventListener('mouseup', (e) => {
+      this.mouseDown = false;
+    });
+
+    this.canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+  }
 
   gameLoop(): void {
     console.log(`TODO: Gameloop`);
   }
 
-  setupEvents(): void {
-    console.log(`TODO: Event Listener Setup`);
+  setMode(mode: GameMode): void {
+    console.log(`TODO: setMode`);
+  }
+
+  handleGridClick(e: MouseEvent): void {
+    console.log(`TODO: handleGridClick`);
   }
 }
+
+
+window.addEventListener('load', () => {
+  new Game();
+})
