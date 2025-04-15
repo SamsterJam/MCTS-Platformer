@@ -201,7 +201,126 @@ class Game {
     return (playerCount === 1 && goalCount > 0);
   }
 
-  gameLoop(): void {
+  update(deltaTime: number): void {
+    if (this.mode === GameMode.PLAY) {
+      this.updateGameplay(deltaTime);
+    }
+  }
+
+  updateGameplay(deltaTime: number): void {
+    // Move
+    if (this.keys['ArrowLeft']) {
+      this.playerVelocity.x = -PLAYER_SPEED;
+    } else if (this.keys['ArrowRight']) {
+      this.playerVelocity.x = PLAYER_SPEED;
+    } else {
+      this.playerVelocity.x = 0;
+    }
+
+    // Jump
+    if ((this.keys['ArrowUp']) && this.isGrounded) {
+      this.playerVelocity.y = JUMP_FORCE;
+      this.isGrounded = false;
+    }
+
+    // Gravity
+    this.playerVelocity.y += GRAVITY * deltaTime;
+
+    // Velocity
+    const newPos = {
+      x: this.playerPos.x + this.playerVelocity.x * deltaTime,
+      y: this.playerPos.y + this.playerVelocity.y * deltaTime
+    }
+
+    // Collisions
+    this.handleCollisions(newPos);
+
+    // Out of world check
+    if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
+      this.resetPlayer();
+    }
+  }
+
+  handleCollisions(newPos: {x:number, y:number}) : void {
+    // Horizontal
+    const horizontalPos = {
+      x: newPos.x,
+      y: this.playerPos.y
+    };
+    
+    if (!this.checkBlockCollision(horizontalPos)) {
+      this.playerPos.x = horizontalPos.x;
+    } else {
+      this.playerVelocity.x = 0;
+    }
+    
+    // Vertical
+    const verticalPos = {
+      x: this.playerPos.x,
+      y: newPos.y
+    };
+    
+    this.isGrounded = false;
+    
+    if (!this.checkBlockCollision(verticalPos)) {
+      this.playerPos.y = verticalPos.y;
+    } else {
+      if (this.playerVelocity.y > 0) {
+        this.isGrounded = true;
+      }
+      this.playerVelocity.y = 0;
+    }
+  }
+
+  checkBlockCollision(pos:{x:number,y:number}): boolean {
+    // I found this article that showed me how to do this:
+    // https://www.jeffreythompson.org/collision-detection/rect-rect.php
+    const gridPositions = [
+      [Math.floor(pos.x), Math.floor(pos.y)],
+      [Math.floor(pos.x + 0.95), Math.floor(pos.y)],
+      [Math.floor(pos.x), Math.floor(pos.y + 0.95)],
+      [Math.floor(pos.x + 0.95), Math.floor(pos.y + 0.95)]
+    ];
+    
+    for (const [x, y] of gridPositions) {
+      if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length) continue;
+      
+      const block = this.grid[y][x];
+      
+      switch (block) {
+        case BlockType.PLATFORM: return true;
+        case BlockType.OBSTACLE:
+          this.resetPlayer();
+          return true;
+        case BlockType.GOAL:
+          this.resetPlayer();
+          // alert('Level Complete!');
+          this.keys = {};
+          this.setMode(GameMode.EDIT);
+          return false;
+      }
+    }
+    
+    return false;
+  }
+
+  resetPlayer(): void {
+    for (let y = 0; y < this.grid.length; y++) {
+      for (let x = 0; x < this.grid[y].length; x++) {
+        if (this.grid[y][x] === BlockType.PLAYER) {
+          this.playerPos = { x, y };
+          this.playerVelocity = { x: 0, y: 0 };
+          return;
+        }
+      }
+    }
+  }
+
+  gameLoop(timestamp: number): void {
+    const deltaTime = (timestamp - this.lastTime) / 1000;
+    this.lastTime = timestamp;
+
+    this.update(deltaTime);
     this.render();
     requestAnimationFrame(this.gameLoop.bind(this));
   }

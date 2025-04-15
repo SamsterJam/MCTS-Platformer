@@ -178,7 +178,113 @@ var Game = /** @class */ (function () {
         }
         return (playerCount === 1 && goalCount > 0);
     };
-    Game.prototype.gameLoop = function () {
+    Game.prototype.update = function (deltaTime) {
+        if (this.mode === GameMode.PLAY) {
+            this.updateGameplay(deltaTime);
+        }
+    };
+    Game.prototype.updateGameplay = function (deltaTime) {
+        // Move
+        if (this.keys['ArrowLeft']) {
+            this.playerVelocity.x = -PLAYER_SPEED;
+        }
+        else if (this.keys['ArrowRight']) {
+            this.playerVelocity.x = PLAYER_SPEED;
+        }
+        else {
+            this.playerVelocity.x = 0;
+        }
+        // Jump
+        if ((this.keys['ArrowUp']) && this.isGrounded) {
+            this.playerVelocity.y = JUMP_FORCE;
+            this.isGrounded = false;
+        }
+        // Gravity
+        this.playerVelocity.y += GRAVITY * deltaTime;
+        // Velocity
+        var newPos = {
+            x: this.playerPos.x + this.playerVelocity.x * deltaTime,
+            y: this.playerPos.y + this.playerVelocity.y * deltaTime
+        };
+        // Collisions
+        this.handleCollisions(newPos);
+        // Out of world check
+        if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
+            this.resetPlayer();
+        }
+    };
+    Game.prototype.handleCollisions = function (newPos) {
+        // Horizontal
+        var horizontalPos = {
+            x: newPos.x,
+            y: this.playerPos.y
+        };
+        if (!this.checkBlockCollision(horizontalPos)) {
+            this.playerPos.x = horizontalPos.x;
+        }
+        else {
+            this.playerVelocity.x = 0;
+        }
+        // Vertical
+        var verticalPos = {
+            x: this.playerPos.x,
+            y: newPos.y
+        };
+        this.isGrounded = false;
+        if (!this.checkBlockCollision(verticalPos)) {
+            this.playerPos.y = verticalPos.y;
+        }
+        else {
+            if (this.playerVelocity.y > 0) {
+                this.isGrounded = true;
+            }
+            this.playerVelocity.y = 0;
+        }
+    };
+    Game.prototype.checkBlockCollision = function (pos) {
+        // I found this article that showed me how to do this:
+        // https://www.jeffreythompson.org/collision-detection/rect-rect.php
+        var gridPositions = [
+            [Math.floor(pos.x), Math.floor(pos.y)],
+            [Math.floor(pos.x + 0.95), Math.floor(pos.y)],
+            [Math.floor(pos.x), Math.floor(pos.y + 0.95)],
+            [Math.floor(pos.x + 0.95), Math.floor(pos.y + 0.95)]
+        ];
+        for (var _i = 0, gridPositions_1 = gridPositions; _i < gridPositions_1.length; _i++) {
+            var _a = gridPositions_1[_i], x = _a[0], y = _a[1];
+            if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length)
+                continue;
+            var block = this.grid[y][x];
+            switch (block) {
+                case BlockType.PLATFORM: return true;
+                case BlockType.OBSTACLE:
+                    this.resetPlayer();
+                    return true;
+                case BlockType.GOAL:
+                    this.resetPlayer();
+                    // alert('Level Complete!');
+                    this.keys = {};
+                    this.setMode(GameMode.EDIT);
+                    return false;
+            }
+        }
+        return false;
+    };
+    Game.prototype.resetPlayer = function () {
+        for (var y = 0; y < this.grid.length; y++) {
+            for (var x = 0; x < this.grid[y].length; x++) {
+                if (this.grid[y][x] === BlockType.PLAYER) {
+                    this.playerPos = { x: x, y: y };
+                    this.playerVelocity = { x: 0, y: 0 };
+                    return;
+                }
+            }
+        }
+    };
+    Game.prototype.gameLoop = function (timestamp) {
+        var deltaTime = (timestamp - this.lastTime) / 1000;
+        this.lastTime = timestamp;
+        this.update(deltaTime);
         this.render();
         requestAnimationFrame(this.gameLoop.bind(this));
     };
