@@ -170,8 +170,17 @@ class Game {
   }
 
   validateLevel(): boolean {
-    console.log(`TODO: validateLevel`);
-    return true;
+    let playerCount = 0;
+    let goalCount = 0;
+
+    for (const row of this.grid) {
+      for (const cell of row) {
+        if (cell === BlockType.PLAYER) playerCount++;
+        if (cell === BlockType.GOAL) goalCount++;
+      }
+    }
+
+    return (playerCount === 1 && goalCount > 0);
   }
 }
 

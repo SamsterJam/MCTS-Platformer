@@ -147,8 +147,19 @@ var Game = /** @class */ (function () {
         this.grid[y][x] = this.selectedBlock;
     };
     Game.prototype.validateLevel = function () {
-        console.log("TODO: validateLevel");
-        return true;
+        var playerCount = 0;
+        var goalCount = 0;
+        for (var _i = 0, _a = this.grid; _i < _a.length; _i++) {
+            var row = _a[_i];
+            for (var _b = 0, row_1 = row; _b < row_1.length; _b++) {
+                var cell = row_1[_b];
+                if (cell === BlockType.PLAYER)
+                    playerCount++;
+                if (cell === BlockType.GOAL)
+                    goalCount++;
+            }
+        }
+        return (playerCount === 1 && goalCount > 0);
     };
     return Game;
 }());
