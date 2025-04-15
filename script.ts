@@ -143,7 +143,30 @@ class Game {
   }
 
   handleGridClick(e: MouseEvent): void {
-    console.log(`TODO: handleGridClick`);
+    const rect = this.canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left)/GRID_SIZE);
+    const y = Math.floor((e.clientY - rect.top)/GRID_SIZE);
+
+    if(x<0 || y<0 || y>= this.grid.length || x >= this.grid[0].length) {
+      return;
+    }
+
+    if (e.buttons === 2) {
+      this.grid[y][x] = BlockType.EMPTY;
+      return;
+    }
+
+    if (this.selectedBlock === BlockType.PLAYER) {
+      for (let gridY=0; gridY<this.grid.length; gridY++) {
+        for(let gridX=0; gridX<this.grid[gridY].length; gridX++){
+          if (this.grid[y][x] === BlockType.PLAYER) {
+            this.grid[gridY][gridX] = BlockType.EMPTY;
+          }
+        }
+      }
+    }
+
+    this.grid[y][x] = this.selectedBlock;
   }
 
   validateLevel(): boolean {
