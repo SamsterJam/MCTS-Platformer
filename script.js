@@ -118,9 +118,6 @@ var Game = /** @class */ (function () {
             }
         });
     };
-    Game.prototype.gameLoop = function () {
-        console.log("TODO: Gameloop");
-    };
     Game.prototype.setMode = function (mode) {
         this.mode = mode;
         if (mode === GameMode.PLAY) {
@@ -180,6 +177,61 @@ var Game = /** @class */ (function () {
             }
         }
         return (playerCount === 1 && goalCount > 0);
+    };
+    Game.prototype.gameLoop = function () {
+        this.render();
+        requestAnimationFrame(this.gameLoop.bind(this));
+    };
+    Game.prototype.render = function () {
+        //clear
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        //draw
+        this.ctx.fillStyle = '#87CEEB';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        if (this.mode === GameMode.EDIT) {
+            this.renderEditor();
+        }
+        else {
+            this.renderGameplay();
+        }
+    };
+    Game.prototype.renderEditor = function () {
+        // Grid
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.lineWidth = 1;
+        // Vertical Lines
+        for (var x = 0; x <= this.canvas.width; x += GRID_SIZE) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, 0);
+            this.ctx.lineTo(x, this.canvas.height);
+            this.ctx.stroke();
+        }
+        // Horizontal Lines
+        for (var y = 0; y <= this.canvas.height; y += GRID_SIZE) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, y);
+            this.ctx.lineTo(this.canvas.width, y);
+            this.ctx.stroke();
+        }
+        this.renderBlocks();
+    };
+    Game.prototype.renderGameplay = function () {
+        this.renderBlocks(true);
+        this.ctx.fillStyle = COLORS[BlockType.PLAYER];
+        this.ctx.fillRect(Math.round(this.playerPos.x * GRID_SIZE), Math.round(this.playerPos.y * GRID_SIZE), GRID_SIZE, GRID_SIZE);
+    };
+    Game.prototype.renderBlocks = function (hidePlayer) {
+        if (hidePlayer === void 0) { hidePlayer = false; }
+        for (var y = 0; y < this.grid.length; y++) {
+            for (var x = 0; x < this.grid[y].length; x++) {
+                var block = this.grid[y][x];
+                if (block === BlockType.EMPTY || (hidePlayer && block === BlockType.PLAYER)) {
+                    continue;
+                }
+                this.ctx.fillStyle = COLORS[block];
+                this.ctx.fillRect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+            }
+        }
     };
     return Game;
 }());

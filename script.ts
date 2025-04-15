@@ -134,10 +134,6 @@ class Game {
     });
   }
 
-  gameLoop(): void {
-    console.log(`TODO: Gameloop`);
-  }
-
   setMode(mode: GameMode): void {
     this.mode = mode;
 
@@ -203,6 +199,79 @@ class Game {
     }
 
     return (playerCount === 1 && goalCount > 0);
+  }
+
+  gameLoop(): void {
+    this.render();
+    requestAnimationFrame(this.gameLoop.bind(this));
+  }
+
+  render(): void {
+    //clear
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+
+    //draw
+    this.ctx.fillStyle = '#87CEEB';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    if (this.mode === GameMode.EDIT) {
+      this.renderEditor();
+    } else {
+      this.renderGameplay();
+    }
+  }
+
+  renderEditor(): void {
+    // Grid
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+    this.ctx.lineWidth = 1;
+    
+    // Vertical Lines
+    for (let x=0; x<= this.canvas.width; x+= GRID_SIZE) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x,0);
+      this.ctx.lineTo(x, this.canvas.height);
+      this.ctx.stroke();
+    }
+
+    // Horizontal Lines
+    for (let y = 0; y <= this.canvas.height; y += GRID_SIZE) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.stroke();
+    }
+
+    this.renderBlocks();
+  }
+
+  renderGameplay(): void {
+    this.renderBlocks(true);
+
+    this.ctx.fillStyle = COLORS[BlockType.PLAYER];
+    this.ctx.fillRect(
+      Math.round(this.playerPos.x * GRID_SIZE),
+      Math.round(this.playerPos.y * GRID_SIZE),
+      GRID_SIZE,
+      GRID_SIZE
+    );
+  }
+
+
+  renderBlocks(hidePlayer = false): void {
+    for(let y=0; y<this.grid.length; y++){
+      for(let x=0; x<this.grid[y].length; x++){
+        const block = this.grid[y][x];
+
+        if(block === BlockType.EMPTY || (hidePlayer && block === BlockType.PLAYER)) {
+          continue;
+        }
+
+        this.ctx.fillStyle = COLORS[block];
+        this.ctx.fillRect(x * GRID_SIZE, y*GRID_SIZE, GRID_SIZE, GRID_SIZE);
+      }
+    }
   }
 }
 
