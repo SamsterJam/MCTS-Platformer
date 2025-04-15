@@ -139,7 +139,29 @@ class Game {
   }
 
   setMode(mode: GameMode): void {
-    console.log(`TODO: setMode`);
+    this.mode = mode;
+
+    if(mode === GameMode.PLAY) {
+      let playerFound = false;
+
+      for (let y=0; y<this.grid.length && !playerFound; y++) {
+        for (let x=0; x<this.grid[y].length; x++) {
+          if (this.grid[y][x] === BlockType.PLAYER) {
+            this.playerPos = { x, y };
+            this.playerVelocity = {x:0, y:0};
+            this.isGrounded = false;
+            playerFound = true;
+            break;
+          }
+        }
+      }
+
+      this.toolbar.style.display = 'none';
+      this.playBtn.textContent = 'EDIT';
+    } else {
+      this.toolbar.style.display = 'flex';
+      this.playBtn.textContent = 'PLAY';
+    }
   }
 
   handleGridClick(e: MouseEvent): void {

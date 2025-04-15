@@ -122,7 +122,27 @@ var Game = /** @class */ (function () {
         console.log("TODO: Gameloop");
     };
     Game.prototype.setMode = function (mode) {
-        console.log("TODO: setMode");
+        this.mode = mode;
+        if (mode === GameMode.PLAY) {
+            var playerFound = false;
+            for (var y = 0; y < this.grid.length && !playerFound; y++) {
+                for (var x = 0; x < this.grid[y].length; x++) {
+                    if (this.grid[y][x] === BlockType.PLAYER) {
+                        this.playerPos = { x: x, y: y };
+                        this.playerVelocity = { x: 0, y: 0 };
+                        this.isGrounded = false;
+                        playerFound = true;
+                        break;
+                    }
+                }
+            }
+            this.toolbar.style.display = 'none';
+            this.playBtn.textContent = 'EDIT';
+        }
+        else {
+            this.toolbar.style.display = 'flex';
+            this.playBtn.textContent = 'PLAY';
+        }
     };
     Game.prototype.handleGridClick = function (e) {
         var rect = this.canvas.getBoundingClientRect();
