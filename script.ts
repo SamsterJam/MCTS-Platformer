@@ -1,8 +1,8 @@
 // Constants
 const GRID_SIZE = 64;
-const GRAVITY = 125;
-const JUMP_FORCE =  -25;
-const PLAYER_SPEED = 10;
+const GRAVITY = 1.5;
+const JUMP_FORCE = -20;
+const PLAYER_SPEED = 8;
 
 enum BlockType {
   EMPTY = 0,
@@ -37,7 +37,9 @@ class Game {
   mouseDown = false;
   toolbar: HTMLElement;
   playBtn: HTMLElement;
-  lastTime = 0;
+  
+  lastFrameTime = 0;
+  tickRate = 60;
 
   constructor() {
     this.canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -49,6 +51,7 @@ class Game {
     this.initGrid();
     this.setupEvents();
 
+    this.lastFrameTime = performance.now();
     requestAnimationFrame(this.gameLoop.bind(this));
   }
 
@@ -108,7 +111,7 @@ class Game {
     blockButtons.forEach(button => {
       button.addEventListener('click', () => {
         blockButtons.forEach(btn => btn.classList.remove('selected'));
-        this.playBtn.classList.add('selected');
+        button.classList.add('selected');
 
         const type = button.getAttribute('data-type');
         if (type === 'player') this.selectedBlock = BlockType.PLAYER;
@@ -177,7 +180,7 @@ class Game {
     if (this.selectedBlock === BlockType.PLAYER) {
       for (let gridY=0; gridY<this.grid.length; gridY++) {
         for(let gridX=0; gridX<this.grid[gridY].length; gridX++){
-          if (this.grid[y][x] === BlockType.PLAYER) {
+          if (this.grid[gridY][gridX] === BlockType.PLAYER) {
             this.grid[gridY][gridX] = BlockType.EMPTY;
           }
         }
@@ -201,14 +204,28 @@ class Game {
     return (playerCount === 1 && goalCount > 0);
   }
 
-  update(deltaTime: number): void {
+  gameLoop(timestamp: number): void {
+    const currentTime = performance.now();
+    const elapsed = currentTime - this.lastFrameTime;
+    const frameInterval = 1000 / this.tickRate;
+    
+    if (elapsed >= frameInterval) {
+      this.lastFrameTime = currentTime - (elapsed % frameInterval);
+      
+      this.update();
+    }
+    
+    this.render();
+    requestAnimationFrame(this.gameLoop.bind(this));
+  }
+
+  update(): void {
     if (this.mode === GameMode.PLAY) {
-      this.updateGameplay(deltaTime);
+      this.updateGameplay();
     }
   }
 
-  updateGameplay(deltaTime: number): void {
-    // Move
+  updateGameplay(): void {
     if (this.keys['ArrowLeft']) {
       this.playerVelocity.x = -PLAYER_SPEED;
     } else if (this.keys['ArrowRight']) {
@@ -223,85 +240,81 @@ class Game {
       this.isGrounded = false;
     }
 
-    // Gravity
-    this.playerVelocity.y += GRAVITY * deltaTime;
-
-    // Velocity
-    const newPos = {
-      x: this.playerPos.x + this.playerVelocity.x * deltaTime,
-      y: this.playerPos.y + this.playerVelocity.y * deltaTime
-    }
-
-    // Collisions
-    this.handleCollisions(newPos);
-
-    // Out of world check
+    this.playerVelocity.y += GRAVITY;
+    
+    this.moveWithCollisions();
+    
     if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
       this.resetPlayer();
     }
   }
 
-  handleCollisions(newPos: {x:number, y:number}) : void {
+  moveWithCollisions(): void {
     // Horizontal
-    const horizontalPos = {
-      x: newPos.x,
-      y: this.playerPos.y
-    };
+    this.playerPos.x += this.playerVelocity.x / this.tickRate;
     
-    if (!this.checkBlockCollision(horizontalPos)) {
-      this.playerPos.x = horizontalPos.x;
-    } else {
+    const hCollision = this.getCollision();
+    if (hCollision) {
+      if (this.playerVelocity.x > 0) {
+        this.playerPos.x = Math.floor(this.playerPos.x);
+      } else {
+        this.playerPos.x = Math.ceil(this.playerPos.x);
+      }
       this.playerVelocity.x = 0;
+      
+      this.handleSpecialBlocks(hCollision);
     }
     
     // Vertical
-    const verticalPos = {
-      x: this.playerPos.x,
-      y: newPos.y
-    };
+    this.playerPos.y += this.playerVelocity.y / this.tickRate;
     
-    this.isGrounded = false;
-    
-    if (!this.checkBlockCollision(verticalPos)) {
-      this.playerPos.y = verticalPos.y;
-    } else {
+    const vCollision = this.getCollision();
+    if (vCollision) {
       if (this.playerVelocity.y > 0) {
+        this.playerPos.y = Math.floor(this.playerPos.y);
         this.isGrounded = true;
+      } else {
+        this.playerPos.y = Math.ceil(this.playerPos.y);
       }
       this.playerVelocity.y = 0;
+      
+      this.handleSpecialBlocks(vCollision);
+    } else {
+      this.isGrounded = false;
     }
   }
 
-  checkBlockCollision(pos:{x:number,y:number}): boolean {
-    // I found this article that showed me how to do this:
-    // https://www.jeffreythompson.org/collision-detection/rect-rect.php
-    const gridPositions = [
-      [Math.floor(pos.x), Math.floor(pos.y)],
-      [Math.floor(pos.x + 0.95), Math.floor(pos.y)],
-      [Math.floor(pos.x), Math.floor(pos.y + 0.95)],
-      [Math.floor(pos.x + 0.95), Math.floor(pos.y + 0.95)]
-    ];
+  getCollision(): BlockType | null {
+    const left = Math.floor(this.playerPos.x);
+    const right = Math.floor(this.playerPos.x + 0.999);
+    const top = Math.floor(this.playerPos.y);
+    const bottom = Math.floor(this.playerPos.y + 0.999);
     
-    for (const [x, y] of gridPositions) {
-      if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length) continue;
-      
-      const block = this.grid[y][x];
-      
-      switch (block) {
-        case BlockType.PLATFORM: return true;
-        case BlockType.OBSTACLE:
-          this.resetPlayer();
-          return true;
-        case BlockType.GOAL:
-          this.resetPlayer();
-          // alert('Level Complete!');
-          this.keys = {};
-          this.setMode(GameMode.EDIT);
-          return false;
+    for (let y = top; y <= bottom; y++) {
+      for (let x = left; x <= right; x++) {
+        if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length) continue;
+        
+        const block = this.grid[y][x];
+        if (block === BlockType.PLATFORM || block === BlockType.OBSTACLE || block === BlockType.GOAL) {
+          return block;
+        }
       }
     }
     
-    return false;
+    return null;
+  }
+
+  handleSpecialBlocks(blockType: BlockType): void {
+    switch (blockType) {
+      case BlockType.OBSTACLE:
+        this.resetPlayer();
+        break;
+      case BlockType.GOAL:
+        this.resetPlayer();
+        this.keys = {};
+        this.setMode(GameMode.EDIT);
+        break;
+    }
   }
 
   resetPlayer(): void {
@@ -314,15 +327,6 @@ class Game {
         }
       }
     }
-  }
-
-  gameLoop(timestamp: number): void {
-    const deltaTime = (timestamp - this.lastTime) / 1000;
-    this.lastTime = timestamp;
-
-    this.update(deltaTime);
-    this.render();
-    requestAnimationFrame(this.gameLoop.bind(this));
   }
 
   render(): void {
