@@ -1,9 +1,8 @@
-var _a;
 // Constants
-var GRID_SIZE = 64;
-var GRAVITY = 1.5;
-var JUMP_FORCE = -20;
-var PLAYER_SPEED = 8;
+const GRID_SIZE = 64;
+const GRAVITY = 1.5;
+const JUMP_FORCE = -20;
+const PLAYER_SPEED = 8;
 var BlockType;
 (function (BlockType) {
     BlockType[BlockType["EMPTY"] = 0] = "EMPTY";
@@ -17,14 +16,21 @@ var GameMode;
     GameMode[GameMode["EDIT"] = 0] = "EDIT";
     GameMode[GameMode["PLAY"] = 1] = "PLAY";
 })(GameMode || (GameMode = {}));
-var COLORS = (_a = {},
-    _a[BlockType.PLAYER] = "blue",
-    _a[BlockType.PLATFORM] = "green",
-    _a[BlockType.OBSTACLE] = "red",
-    _a[BlockType.GOAL] = "gold",
-    _a);
-var Game = /** @class */ (function () {
-    function Game() {
+var MCTSAction;
+(function (MCTSAction) {
+    MCTSAction[MCTSAction["DO_NOTHING"] = 0] = "DO_NOTHING";
+    MCTSAction[MCTSAction["MOVE_RIGHT"] = 1] = "MOVE_RIGHT";
+    MCTSAction[MCTSAction["MOVE_LEFT"] = 2] = "MOVE_LEFT";
+    MCTSAction[MCTSAction["JUMP"] = 3] = "JUMP";
+})(MCTSAction || (MCTSAction = {}));
+const COLORS = {
+    [BlockType.PLAYER]: "blue",
+    [BlockType.PLATFORM]: "green",
+    [BlockType.OBSTACLE]: "red",
+    [BlockType.GOAL]: "gold"
+};
+class Game {
+    constructor() {
         this.grid = [];
         this.mode = GameMode.EDIT;
         this.selectedBlock = BlockType.PLATFORM;
@@ -33,6 +39,10 @@ var Game = /** @class */ (function () {
         this.isGrounded = false;
         this.keys = {};
         this.mouseDown = false;
+        // MCTS
+        this.mctsTree = new Map();
+        this.bestPath = [];
+        this.simulationCount = 0;
         this.lastFrameTime = 0;
         this.tickRate = 60;
         this.canvas = document.getElementById('gameCanvas');
@@ -44,90 +54,89 @@ var Game = /** @class */ (function () {
         this.lastFrameTime = performance.now();
         requestAnimationFrame(this.gameLoop.bind(this));
     }
-    Game.prototype.initGrid = function () {
-        var cols = Math.ceil(this.canvas.width / GRID_SIZE);
-        var rows = Math.ceil(this.canvas.height / GRID_SIZE);
+    initGrid() {
+        const cols = Math.ceil(this.canvas.width / GRID_SIZE);
+        const rows = Math.ceil(this.canvas.height / GRID_SIZE);
         this.grid = [];
-        for (var r = 0; r < rows; r++) {
-            var row = [];
-            for (var c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+            const row = [];
+            for (let c = 0; c < cols; c++) {
                 row.push(BlockType.EMPTY);
             }
             this.grid.push(row);
         }
-    };
-    Game.prototype.setupEvents = function () {
-        var _this = this;
+    }
+    setupEvents() {
         // Keyboard
-        window.addEventListener('keydown', function (e) {
-            _this.keys[e.code] = true;
+        window.addEventListener('keydown', (e) => {
+            this.keys[e.code] = true;
         });
-        window.addEventListener('keyup', function (e) {
-            _this.keys[e.code] = false;
-            if (e.code === 'Escape' && _this.mode === GameMode.PLAY) {
-                _this.setMode(GameMode.EDIT);
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+            if (e.code === 'Escape' && this.mode === GameMode.PLAY) {
+                this.setMode(GameMode.EDIT);
             }
         });
         // Mouse
-        this.canvas.addEventListener('mousedown', function (e) {
-            if (_this.mode !== GameMode.EDIT)
+        this.canvas.addEventListener('mousedown', (e) => {
+            if (this.mode !== GameMode.EDIT)
                 return;
-            _this.mouseDown = true;
-            _this.handleGridClick(e);
+            this.mouseDown = true;
+            this.handleGridClick(e);
         });
-        this.canvas.addEventListener('mousemove', function (e) {
-            if (_this.mode !== GameMode.EDIT || !_this.mouseDown)
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (this.mode !== GameMode.EDIT || !this.mouseDown)
                 return;
-            _this.handleGridClick(e);
+            this.handleGridClick(e);
         });
-        this.canvas.addEventListener('mouseup', function (e) {
-            _this.mouseDown = false;
+        this.canvas.addEventListener('mouseup', (e) => {
+            this.mouseDown = false;
         });
-        this.canvas.addEventListener('contextmenu', function (e) {
+        this.canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
         // Block Menu
-        var blockButtons = this.toolbar.querySelectorAll('.block-btn');
-        blockButtons.forEach(function (button) {
-            button.addEventListener('click', function () {
-                blockButtons.forEach(function (btn) { return btn.classList.remove('selected'); });
+        const blockButtons = this.toolbar.querySelectorAll('.block-btn');
+        blockButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                blockButtons.forEach(btn => btn.classList.remove('selected'));
                 button.classList.add('selected');
-                var type = button.getAttribute('data-type');
+                const type = button.getAttribute('data-type');
                 if (type === 'player')
-                    _this.selectedBlock = BlockType.PLAYER;
+                    this.selectedBlock = BlockType.PLAYER;
                 else if (type === 'platform')
-                    _this.selectedBlock = BlockType.PLATFORM;
+                    this.selectedBlock = BlockType.PLATFORM;
                 else if (type === 'obstacle')
-                    _this.selectedBlock = BlockType.OBSTACLE;
+                    this.selectedBlock = BlockType.OBSTACLE;
                 else if (type === 'goal')
-                    _this.selectedBlock = BlockType.GOAL;
+                    this.selectedBlock = BlockType.GOAL;
                 else if (type === 'eraser')
-                    _this.selectedBlock = BlockType.EMPTY;
+                    this.selectedBlock = BlockType.EMPTY;
             });
         });
         blockButtons[1].classList.add('selected');
-        this.playBtn.addEventListener('click', function () {
-            if (_this.mode === GameMode.EDIT) {
-                if (_this.validateLevel()) {
-                    _this.setMode(GameMode.PLAY);
+        this.playBtn.addEventListener('click', () => {
+            if (this.mode === GameMode.EDIT) {
+                if (this.validateLevel()) {
+                    this.setMode(GameMode.PLAY);
                 }
                 else {
                     alert('Level must have exactly one player and at least one goal!');
                 }
             }
             else {
-                _this.setMode(GameMode.EDIT);
+                this.setMode(GameMode.EDIT);
             }
         });
-    };
-    Game.prototype.setMode = function (mode) {
+    }
+    setMode(mode) {
         this.mode = mode;
         if (mode === GameMode.PLAY) {
-            var playerFound = false;
-            for (var y = 0; y < this.grid.length && !playerFound; y++) {
-                for (var x = 0; x < this.grid[y].length; x++) {
+            let playerFound = false;
+            for (let y = 0; y < this.grid.length && !playerFound; y++) {
+                for (let x = 0; x < this.grid[y].length; x++) {
                     if (this.grid[y][x] === BlockType.PLAYER) {
-                        this.playerPos = { x: x, y: y };
+                        this.playerPos = { x, y };
                         this.playerVelocity = { x: 0, y: 0 };
                         this.isGrounded = false;
                         playerFound = true;
@@ -137,16 +146,23 @@ var Game = /** @class */ (function () {
             }
             this.toolbar.style.display = 'none';
             this.playBtn.textContent = 'EDIT';
+            this.mctsTree = new Map();
+            this.bestPath = [];
+            this.simulationCount = 0;
         }
         else {
             this.toolbar.style.display = 'flex';
             this.playBtn.textContent = 'PLAY';
+            // Reset MCTS
+            this.mctsTree = new Map();
+            this.bestPath = [];
+            this.simulationCount = 0;
         }
-    };
-    Game.prototype.handleGridClick = function (e) {
-        var rect = this.canvas.getBoundingClientRect();
-        var x = Math.floor((e.clientX - rect.left) / GRID_SIZE);
-        var y = Math.floor((e.clientY - rect.top) / GRID_SIZE);
+    }
+    handleGridClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / GRID_SIZE);
+        const y = Math.floor((e.clientY - rect.top) / GRID_SIZE);
         if (x < 0 || y < 0 || y >= this.grid.length || x >= this.grid[0].length) {
             return;
         }
@@ -155,8 +171,8 @@ var Game = /** @class */ (function () {
             return;
         }
         if (this.selectedBlock === BlockType.PLAYER) {
-            for (var gridY = 0; gridY < this.grid.length; gridY++) {
-                for (var gridX = 0; gridX < this.grid[gridY].length; gridX++) {
+            for (let gridY = 0; gridY < this.grid.length; gridY++) {
+                for (let gridX = 0; gridX < this.grid[gridY].length; gridX++) {
                     if (this.grid[gridY][gridX] === BlockType.PLAYER) {
                         this.grid[gridY][gridX] = BlockType.EMPTY;
                     }
@@ -164,14 +180,12 @@ var Game = /** @class */ (function () {
             }
         }
         this.grid[y][x] = this.selectedBlock;
-    };
-    Game.prototype.validateLevel = function () {
-        var playerCount = 0;
-        var goalCount = 0;
-        for (var _i = 0, _a = this.grid; _i < _a.length; _i++) {
-            var row = _a[_i];
-            for (var _b = 0, row_1 = row; _b < row_1.length; _b++) {
-                var cell = row_1[_b];
+    }
+    validateLevel() {
+        let playerCount = 0;
+        let goalCount = 0;
+        for (const row of this.grid) {
+            for (const cell of row) {
                 if (cell === BlockType.PLAYER)
                     playerCount++;
                 if (cell === BlockType.GOAL)
@@ -179,48 +193,58 @@ var Game = /** @class */ (function () {
             }
         }
         return (playerCount === 1 && goalCount > 0);
-    };
-    Game.prototype.gameLoop = function (timestamp) {
-        var currentTime = performance.now();
-        var elapsed = currentTime - this.lastFrameTime;
-        var frameInterval = 1000 / this.tickRate;
+    }
+    gameLoop(timestamp) {
+        const currentTime = performance.now();
+        const elapsed = currentTime - this.lastFrameTime;
+        const frameInterval = 1000 / this.tickRate;
         if (elapsed >= frameInterval) {
             this.lastFrameTime = currentTime - (elapsed % frameInterval);
             this.update();
         }
         this.render();
         requestAnimationFrame(this.gameLoop.bind(this));
-    };
-    Game.prototype.update = function () {
+    }
+    update() {
         if (this.mode === GameMode.PLAY) {
-            this.updateGameplay();
+            const action = this.runMCTS();
+            if (action === MCTSAction.DO_NOTHING) {
+                this.playerVelocity.x = 0;
+            }
+            else if (action === MCTSAction.JUMP && this.isGrounded) {
+                this.playerVelocity.y = JUMP_FORCE;
+                this.isGrounded = false;
+            }
+            else if (action === MCTSAction.MOVE_LEFT) {
+                this.playerVelocity.x = -PLAYER_SPEED;
+            }
+            else if (action === MCTSAction.MOVE_RIGHT) {
+                this.playerVelocity.x = PLAYER_SPEED;
+            }
+            this.playerVelocity.y += GRAVITY;
+            this.moveWithCollisions();
+            // Keep in bounds
+            if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
+                this.resetPlayer();
+            }
         }
-    };
-    Game.prototype.updateGameplay = function () {
-        if (this.keys['ArrowLeft']) {
-            this.playerVelocity.x = -PLAYER_SPEED;
-        }
-        else if (this.keys['ArrowRight']) {
-            this.playerVelocity.x = PLAYER_SPEED;
-        }
-        else {
-            this.playerVelocity.x = 0;
-        }
-        // Jump
-        if ((this.keys['ArrowUp']) && this.isGrounded) {
-            this.playerVelocity.y = JUMP_FORCE;
-            this.isGrounded = false;
-        }
-        this.playerVelocity.y += GRAVITY;
-        this.moveWithCollisions();
-        if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
-            this.resetPlayer();
-        }
-    };
-    Game.prototype.moveWithCollisions = function () {
+    }
+    runMCTS() {
+        console.log("TODO runMCTS");
+        return 0;
+    }
+    simulate(playerState) {
+        console.log("TODO simulate");
+        return 0;
+    }
+    simulateAction(playerState, action) {
+        console.log("TODO simulateAction");
+        return playerState;
+    }
+    moveWithCollisions() {
         // Horizontal
         this.playerPos.x += this.playerVelocity.x / this.tickRate;
-        var hCollision = this.getCollision();
+        const hCollision = this.getCollision();
         if (hCollision) {
             if (this.playerVelocity.x > 0) {
                 this.playerPos.x = Math.floor(this.playerPos.x);
@@ -233,7 +257,7 @@ var Game = /** @class */ (function () {
         }
         // Vertical
         this.playerPos.y += this.playerVelocity.y / this.tickRate;
-        var vCollision = this.getCollision();
+        const vCollision = this.getCollision();
         if (vCollision) {
             if (this.playerVelocity.y > 0) {
                 this.playerPos.y = Math.floor(this.playerPos.y);
@@ -248,25 +272,25 @@ var Game = /** @class */ (function () {
         else {
             this.isGrounded = false;
         }
-    };
-    Game.prototype.getCollision = function () {
-        var left = Math.floor(this.playerPos.x);
-        var right = Math.floor(this.playerPos.x + 0.999);
-        var top = Math.floor(this.playerPos.y);
-        var bottom = Math.floor(this.playerPos.y + 0.999);
-        for (var y = top; y <= bottom; y++) {
-            for (var x = left; x <= right; x++) {
+    }
+    getCollision() {
+        const left = Math.floor(this.playerPos.x);
+        const right = Math.floor(this.playerPos.x + 0.999);
+        const top = Math.floor(this.playerPos.y);
+        const bottom = Math.floor(this.playerPos.y + 0.999);
+        for (let y = top; y <= bottom; y++) {
+            for (let x = left; x <= right; x++) {
                 if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length)
                     continue;
-                var block = this.grid[y][x];
+                const block = this.grid[y][x];
                 if (block === BlockType.PLATFORM || block === BlockType.OBSTACLE || block === BlockType.GOAL) {
                     return block;
                 }
             }
         }
         return null;
-    };
-    Game.prototype.handleSpecialBlocks = function (blockType) {
+    }
+    handleSpecialBlocks(blockType) {
         switch (blockType) {
             case BlockType.OBSTACLE:
                 this.resetPlayer();
@@ -277,19 +301,19 @@ var Game = /** @class */ (function () {
                 this.setMode(GameMode.EDIT);
                 break;
         }
-    };
-    Game.prototype.resetPlayer = function () {
-        for (var y = 0; y < this.grid.length; y++) {
-            for (var x = 0; x < this.grid[y].length; x++) {
+    }
+    resetPlayer() {
+        for (let y = 0; y < this.grid.length; y++) {
+            for (let x = 0; x < this.grid[y].length; x++) {
                 if (this.grid[y][x] === BlockType.PLAYER) {
-                    this.playerPos = { x: x, y: y };
+                    this.playerPos = { x, y };
                     this.playerVelocity = { x: 0, y: 0 };
                     return;
                 }
             }
         }
-    };
-    Game.prototype.render = function () {
+    }
+    render() {
         //clear
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         //draw
@@ -301,37 +325,36 @@ var Game = /** @class */ (function () {
         else {
             this.renderGameplay();
         }
-    };
-    Game.prototype.renderEditor = function () {
+    }
+    renderEditor() {
         // Grid
         this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
         this.ctx.lineWidth = 1;
         // Vertical Lines
-        for (var x = 0; x <= this.canvas.width; x += GRID_SIZE) {
+        for (let x = 0; x <= this.canvas.width; x += GRID_SIZE) {
             this.ctx.beginPath();
             this.ctx.moveTo(x, 0);
             this.ctx.lineTo(x, this.canvas.height);
             this.ctx.stroke();
         }
         // Horizontal Lines
-        for (var y = 0; y <= this.canvas.height; y += GRID_SIZE) {
+        for (let y = 0; y <= this.canvas.height; y += GRID_SIZE) {
             this.ctx.beginPath();
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.canvas.width, y);
             this.ctx.stroke();
         }
         this.renderBlocks();
-    };
-    Game.prototype.renderGameplay = function () {
+    }
+    renderGameplay() {
         this.renderBlocks(true);
         this.ctx.fillStyle = COLORS[BlockType.PLAYER];
         this.ctx.fillRect(Math.round(this.playerPos.x * GRID_SIZE), Math.round(this.playerPos.y * GRID_SIZE), GRID_SIZE, GRID_SIZE);
-    };
-    Game.prototype.renderBlocks = function (hidePlayer) {
-        if (hidePlayer === void 0) { hidePlayer = false; }
-        for (var y = 0; y < this.grid.length; y++) {
-            for (var x = 0; x < this.grid[y].length; x++) {
-                var block = this.grid[y][x];
+    }
+    renderBlocks(hidePlayer = false) {
+        for (let y = 0; y < this.grid.length; y++) {
+            for (let x = 0; x < this.grid[y].length; x++) {
+                const block = this.grid[y][x];
                 if (block === BlockType.EMPTY || (hidePlayer && block === BlockType.PLAYER)) {
                     continue;
                 }
@@ -339,9 +362,8 @@ var Game = /** @class */ (function () {
                 this.ctx.fillRect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
             }
         }
-    };
-    return Game;
-}());
-window.addEventListener('load', function () {
+    }
+}
+window.addEventListener('load', () => {
     new Game();
 });

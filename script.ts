@@ -17,6 +17,35 @@ enum GameMode {
   PLAY
 }
 
+enum MCTSAction {
+  DO_NOTHING = 0,
+  MOVE_RIGHT = 1,
+  MOVE_LEFT = 2,
+  JUMP = 3
+}
+
+interface MCTSNode {
+  visits: number;
+  totalReward: number;
+  children: Array<MCTSChild>;
+}
+
+interface MCTSChild {
+  action: MCTSAction,
+  visits: number;
+  totalReward: number;
+}
+
+type PlayerState = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  isGrounded: boolean;
+  stateHash: string;
+  depth: number;
+};
+
 const COLORS = {
   [BlockType.PLAYER]: "blue",
   [BlockType.PLATFORM]: "green",
@@ -37,6 +66,11 @@ class Game {
   mouseDown = false;
   toolbar: HTMLElement;
   playBtn: HTMLElement;
+
+  // MCTS
+  mctsTree: Map<string, MCTSNode> = new Map();
+  bestPath: Array<{x:number, y:number}> = [];
+  simulationCount: number = 0;
   
   lastFrameTime = 0;
   tickRate = 60;
@@ -157,9 +191,18 @@ class Game {
 
       this.toolbar.style.display = 'none';
       this.playBtn.textContent = 'EDIT';
+
+      this.mctsTree = new Map();
+      this.bestPath = [];
+      this.simulationCount = 0;
     } else {
       this.toolbar.style.display = 'flex';
       this.playBtn.textContent = 'PLAY';
+
+      // Reset MCTS
+      this.mctsTree = new Map();
+      this.bestPath = [];
+      this.simulationCount = 0;
     }
   }
 
@@ -221,32 +264,43 @@ class Game {
 
   update(): void {
     if (this.mode === GameMode.PLAY) {
-      this.updateGameplay();
+      const action = this.runMCTS();
+
+      if(action === MCTSAction.DO_NOTHING) {
+        this.playerVelocity.x = 0;
+      } else if (action === MCTSAction.JUMP && this.isGrounded) {
+        this.playerVelocity.y = JUMP_FORCE;
+        this.isGrounded = false;
+      } else if (action === MCTSAction.MOVE_LEFT) {
+        this.playerVelocity.x = -PLAYER_SPEED;
+      } else if (action === MCTSAction.MOVE_RIGHT) {
+        this.playerVelocity.x = PLAYER_SPEED;
+      }
+
+      this.playerVelocity.y += GRAVITY;
+
+      this.moveWithCollisions();
+
+      // Keep in bounds
+      if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
+        this.resetPlayer();
+      }
     }
   }
 
-  updateGameplay(): void {
-    if (this.keys['ArrowLeft']) {
-      this.playerVelocity.x = -PLAYER_SPEED;
-    } else if (this.keys['ArrowRight']) {
-      this.playerVelocity.x = PLAYER_SPEED;
-    } else {
-      this.playerVelocity.x = 0;
-    }
+  runMCTS(): number {
+    console.log("TODO runMCTS");
+    return 0;
+  }
 
-    // Jump
-    if ((this.keys['ArrowUp']) && this.isGrounded) {
-      this.playerVelocity.y = JUMP_FORCE;
-      this.isGrounded = false;
-    }
+  simulate(playerState: PlayerState): number {
+    console.log("TODO simulate");
+    return 0;
+  }
 
-    this.playerVelocity.y += GRAVITY;
-    
-    this.moveWithCollisions();
-    
-    if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
-      this.resetPlayer();
-    }
+  simulateAction(playerState: PlayerState, action: number): PlayerState {
+    console.log("TODO simulateAction");
+    return playerState;
   }
 
   moveWithCollisions(): void {
