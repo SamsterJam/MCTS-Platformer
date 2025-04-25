@@ -4,9 +4,9 @@ const GRAVITY = 1.5;
 const JUMP_FORCE = -20;
 const PLAYER_SPEED = 8;
 // MCTS Parameters
-const SIMULATIONS_PER_STEP = 200;
-const MAX_DEPTH = 20;
-const EXPLORATION_CONSTANT = 1.2;
+const SIMULATIONS_PER_STEP = 50;
+const MAX_DEPTH = 10;
+const EXPLORATION_CONSTANT = 1.4;
 var BlockType;
 (function (BlockType) {
     BlockType[BlockType["EMPTY"] = 0] = "EMPTY";
@@ -48,7 +48,6 @@ class Game {
         };
         // MCTS
         this.mctsTree = new Map();
-        this.bestPath = [];
         this.simulationCount = 0;
         this.lastFrameTime = 0;
         this.tickRate = 60;
@@ -154,15 +153,13 @@ class Game {
             this.toolbar.style.display = 'none';
             this.playBtn.textContent = 'EDIT';
             this.mctsTree = new Map();
-            this.bestPath = [];
             this.simulationCount = 0;
         }
         else {
             this.toolbar.style.display = 'flex';
             this.playBtn.textContent = 'PLAY';
-            // Reset MCTS
-            this.mctsTree = new Map();
-            this.bestPath = [];
+            // // Reset MCTS
+            // this.mctsTree = new Map();
             this.simulationCount = 0;
         }
     }
@@ -414,16 +411,60 @@ class Game {
             }
         }
         this.simulationCount = this.mctsTree.size;
-        this.updateBestPath(stateHash);
         return bestAction;
     }
     simulate(state, stateHash, depth) {
-        console.log("TODO simulate");
-        return 0;
-    }
-    updateBestPath(startStateHash) {
-        console.log("TODO startStateHash");
-        return;
+        if (depth >= MAX_DEPTH)
+            return 0;
+        const node = this.mctsTree.get(stateHash);
+        let bestChild = null;
+        let bestUCB = -Infinity;
+        for (const child of node.children) {
+            let ucb;
+            if (child.visits === 0) {
+                ucb = Infinity;
+            }
+            else {
+                const exploitation = child.totalReward / child.visits;
+                const exploration = Math.sqrt(Math.log(node.visits) / child.visits);
+                ucb = exploitation + (EXPLORATION_CONSTANT * exploration);
+            }
+            if (ucb > bestUCB) {
+                bestUCB = ucb;
+                bestChild = child;
+            }
+        }
+        const action = bestChild.action;
+        const { newState, reward, isTerminal } = this.stepGame(state, action);
+        if (isTerminal) {
+            bestChild.visits += 1;
+            bestChild.totalReward += reward;
+            node.visits += 1;
+            node.totalReward += reward;
+            return reward;
+        }
+        const newStateHash = this.hashState(newState);
+        // add if new state
+        if (!this.mctsTree.has(newStateHash)) {
+            this.mctsTree.set(newStateHash, {
+                visits: 0,
+                totalReward: 0,
+                children: [0, 1, 2, 3].map(a => ({
+                    action: a,
+                    visits: 0,
+                    totalReward: 0
+                }))
+            });
+        }
+        // Recursively simulate
+        const futureReward = this.simulate(newState, newStateHash, depth + 1);
+        const totalReward = reward + futureReward;
+        // Backpropagation phase
+        bestChild.visits += 1;
+        bestChild.totalReward += totalReward;
+        node.visits += 1;
+        node.totalReward += totalReward;
+        return totalReward;
     }
     render() {
         //clear
