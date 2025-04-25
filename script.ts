@@ -24,6 +24,18 @@ enum MCTSAction {
   JUMP = 3
 }
 
+interface GameState {
+  playerPos: {x:number, y:number};
+  playerVelocity: {x:number, y:number};
+  isGrounded: boolean;
+}
+
+interface StepResult {
+  newState: GameState;
+  reward: number;
+  isTerminal: boolean;
+}
+
 interface MCTSNode {
   visits: number;
   totalReward: number;
@@ -31,7 +43,7 @@ interface MCTSNode {
 }
 
 interface MCTSChild {
-  action: MCTSAction,
+  action: number,
   visits: number;
   totalReward: number;
 }
@@ -59,13 +71,17 @@ class Game {
   grid: BlockType[][] = [];
   mode: GameMode = GameMode.EDIT;
   selectedBlock: BlockType = BlockType.PLATFORM;
-  playerPos = {x: 0, y: 0};
-  playerVelocity = {x:0, y:0};
-  isGrounded = false;
   keys: {[key:string]: boolean } = {};
   mouseDown = false;
   toolbar: HTMLElement;
   playBtn: HTMLElement;
+
+  // Game state
+  currentState: GameState = {
+    playerPos: {x: 0, y: 0},
+    playerVelocity: {x: 0, y: 0},
+    isGrounded: false
+  }
 
   // MCTS
   mctsTree: Map<string, MCTSNode> = new Map();
@@ -175,15 +191,14 @@ class Game {
     this.mode = mode;
 
     if(mode === GameMode.PLAY) {
-      let playerFound = false;
-
-      for (let y=0; y<this.grid.length && !playerFound; y++) {
+      for (let y=0; y<this.grid.length; y++) {
         for (let x=0; x<this.grid[y].length; x++) {
           if (this.grid[y][x] === BlockType.PLAYER) {
-            this.playerPos = { x, y };
-            this.playerVelocity = {x:0, y:0};
-            this.isGrounded = false;
-            playerFound = true;
+            this.currentState = {
+              playerPos: {x, y},
+              playerVelocity: {x: 0, y: 0},
+              isGrounded: false
+            }
             break;
           }
         }
@@ -266,26 +281,143 @@ class Game {
     if (this.mode === GameMode.PLAY) {
       const action = this.runMCTS();
 
-      if(action === MCTSAction.DO_NOTHING) {
-        this.playerVelocity.x = 0;
-      } else if (action === MCTSAction.JUMP && this.isGrounded) {
-        this.playerVelocity.y = JUMP_FORCE;
-        this.isGrounded = false;
-      } else if (action === MCTSAction.MOVE_LEFT) {
-        this.playerVelocity.x = -PLAYER_SPEED;
-      } else if (action === MCTSAction.MOVE_RIGHT) {
-        this.playerVelocity.x = PLAYER_SPEED;
-      }
+      const result = this.stepGame(this.currentState, action);
+      this.currentState = result.newState;
 
-      this.playerVelocity.y += GRAVITY;
-
-      this.moveWithCollisions();
-
-      // Keep in bounds
-      if (this.playerPos.y * GRID_SIZE > this.canvas.height) {
-        this.resetPlayer();
+      if (result.isTerminal) {
+        if (this.isAtGoal(this.currentState.playerPos)) {
+          this.setMode(GameMode.EDIT);
+        } else {
+          this.resetPlayer();
+        }
       }
     }
+  }
+
+
+  stepGame(state: GameState, action: MCTSAction): StepResult {
+    const newState = state;
+
+    switch(action) {
+      case MCTSAction.DO_NOTHING:
+        newState.playerVelocity.x = 0;
+        break;
+      case MCTSAction.JUMP:
+        if (newState.isGrounded) {
+          newState.playerVelocity.y = JUMP_FORCE;
+          newState.isGrounded = false;
+        }
+        break;
+      case MCTSAction.MOVE_LEFT:
+        newState.playerVelocity.x = -PLAYER_SPEED;
+        break;
+      case MCTSAction.MOVE_RIGHT:
+        newState.playerVelocity.x = PLAYER_SPEED;
+        break;
+    }
+
+    newState.playerVelocity.y += GRAVITY;
+    const prevPos = {... newState.playerPos};
+
+
+    // Horizontal
+    newState.playerPos.x += newState.playerVelocity.x / this.tickRate;
+
+    const horizontalCollision = this.checkCollisionType(newState.playerPos);
+    if (horizontalCollision.collided) {
+      if (newState.playerVelocity.x > 0) {
+        newState.playerPos.x = Math.floor(newState.playerPos.x);
+      } else {
+        newState.playerPos.x = Math.ceil(newState.playerPos.x);
+      }
+      newState.playerVelocity.x = 0;
+      
+      // Terminate
+      if (horizontalCollision.type === BlockType.OBSTACLE || horizontalCollision.type === BlockType.GOAL) {
+        return { 
+          newState, 
+          reward: horizontalCollision.type === BlockType.GOAL ? 500 : -500,
+          isTerminal: true 
+        };
+      }
+
+
+    }
+
+
+    // Vertical 
+    newState.playerPos.y += newState.playerVelocity.y / this.tickRate;
+
+    const verticalCollision = this.checkCollisionType(newState.playerPos);
+    if (verticalCollision.collided) {
+      if (newState.playerVelocity.y > 0) {
+        newState.playerPos.y = Math.floor(newState.playerPos.y);
+        newState.isGrounded = true;
+      } else {
+        newState.playerPos.y = Math.ceil(newState.playerPos.y);
+      }
+      newState.playerVelocity.y = 0;
+      
+      // Terminate
+      if (verticalCollision.type === BlockType.OBSTACLE || verticalCollision.type === BlockType.GOAL) {
+        return { 
+          newState, 
+          reward: verticalCollision.type === BlockType.GOAL ? 100 : -200,
+          isTerminal: true 
+        };
+      }
+    } else {
+      newState.isGrounded = false;
+    }
+
+    let reward = -0.1;
+    let isTerminal = false;
+
+    if (this.isOutOfBounds(newState.playerPos)) {
+      reward = -500;
+      isTerminal = true;
+    }
+
+    // Reward moving towards goal
+    const goalPos = this.findGoalPos();
+    if (goalPos.x != -1) {
+      const prevDistance = Math.sqrt(
+        Math.pow(goalPos.x - prevPos.x, 2) + 
+        Math.pow(goalPos.y - prevPos.y, 2)
+      );
+
+      const newDistance = Math.sqrt(
+        Math.pow(goalPos.x - newState.playerPos.x, 2) + 
+        Math.pow(goalPos.y - newState.playerPos.y, 2)
+      );
+
+      if (newDistance < prevDistance) {
+        reward += 0.5;
+      }
+      
+      // Might decide to reward moving up later, we'll see
+      // if (newState.playerPos.y < prevPos.y) {
+      //   reward += 0.2;
+      // }
+    }
+
+    return { newState, reward, isTerminal };
+  }
+
+
+  checkCollisionType(position: {x: number, y: number}): {collided: boolean, type: BlockType} {
+    console.log("TODO checkCollisionType");
+    return {collided: false, type: BlockType.EMPTY};
+  }
+
+  isAtGoal(position: {x: number, y: number}): boolean {
+    console.log("TODO isAtGoal");
+    return false;
+  }
+
+  isOutOfBounds(position: {x: number, y: number}): boolean {
+    console.log("TODO isOutOfBounds");
+    return false;
   }
 
   runMCTS(): number {
@@ -293,90 +425,26 @@ class Game {
     return 0;
   }
 
-  simulate(playerState: PlayerState): number {
-    console.log("TODO simulate");
-    return 0;
-  }
-
-  simulateAction(playerState: PlayerState, action: number): PlayerState {
-    console.log("TODO simulateAction");
-    return playerState;
-  }
-
-  moveWithCollisions(): void {
-    // Horizontal
-    this.playerPos.x += this.playerVelocity.x / this.tickRate;
-    
-    const hCollision = this.getCollision();
-    if (hCollision) {
-      if (this.playerVelocity.x > 0) {
-        this.playerPos.x = Math.floor(this.playerPos.x);
-      } else {
-        this.playerPos.x = Math.ceil(this.playerPos.x);
-      }
-      this.playerVelocity.x = 0;
-      
-      this.handleSpecialBlocks(hCollision);
-    }
-    
-    // Vertical
-    this.playerPos.y += this.playerVelocity.y / this.tickRate;
-    
-    const vCollision = this.getCollision();
-    if (vCollision) {
-      if (this.playerVelocity.y > 0) {
-        this.playerPos.y = Math.floor(this.playerPos.y);
-        this.isGrounded = true;
-      } else {
-        this.playerPos.y = Math.ceil(this.playerPos.y);
-      }
-      this.playerVelocity.y = 0;
-      
-      this.handleSpecialBlocks(vCollision);
-    } else {
-      this.isGrounded = false;
-    }
-  }
-
-  getCollision(): BlockType | null {
-    const left = Math.floor(this.playerPos.x);
-    const right = Math.floor(this.playerPos.x + 0.999);
-    const top = Math.floor(this.playerPos.y);
-    const bottom = Math.floor(this.playerPos.y + 0.999);
-    
-    for (let y = top; y <= bottom; y++) {
-      for (let x = left; x <= right; x++) {
-        if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length) continue;
-        
-        const block = this.grid[y][x];
-        if (block === BlockType.PLATFORM || block === BlockType.OBSTACLE || block === BlockType.GOAL) {
-          return block;
+  findGoalPos(): {x: number, y: number} {
+    for (let y=0; y < this.grid.length; y++) {
+      for (let x=0; x < this.grid[0].length; x++) {
+        if (this.grid[y][x] === BlockType.GOAL) {
+          return {x,y};
         }
       }
     }
-    
-    return null;
-  }
-
-  handleSpecialBlocks(blockType: BlockType): void {
-    switch (blockType) {
-      case BlockType.OBSTACLE:
-        this.resetPlayer();
-        break;
-      case BlockType.GOAL:
-        this.resetPlayer();
-        this.keys = {};
-        this.setMode(GameMode.EDIT);
-        break;
-    }
+    return { x: -1, y: -1 };
   }
 
   resetPlayer(): void {
-    for (let y = 0; y < this.grid.length; y++) {
-      for (let x = 0; x < this.grid[y].length; x++) {
+    for (let y=0; y < this.grid.length; y++) {
+      for (let x=0; x < this.grid[0].length; x++) {
         if (this.grid[y][x] === BlockType.PLAYER) {
-          this.playerPos = { x, y };
-          this.playerVelocity = { x: 0, y: 0 };
+          this.currentState = {
+            playerPos: {x,y},
+            playerVelocity: {x:0, y:0},
+            isGrounded: false
+          };
           return;
         }
       }
@@ -428,11 +496,13 @@ class Game {
 
     this.ctx.fillStyle = COLORS[BlockType.PLAYER];
     this.ctx.fillRect(
-      Math.round(this.playerPos.x * GRID_SIZE),
-      Math.round(this.playerPos.y * GRID_SIZE),
+      Math.round(this.currentState.playerPos.x * GRID_SIZE),
+      Math.round(this.currentState.playerPos.y * GRID_SIZE),
       GRID_SIZE,
       GRID_SIZE
     );
+
+    //TODO Render Path
   }
 
 
