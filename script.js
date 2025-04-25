@@ -3,6 +3,10 @@ const GRID_SIZE = 64;
 const GRAVITY = 1.5;
 const JUMP_FORCE = -20;
 const PLAYER_SPEED = 8;
+// MCTS Parameters
+const SIMULATIONS_PER_STEP = 200;
+const MAX_DEPTH = 20;
+const EXPLORATION_CONSTANT = 1.2;
 var BlockType;
 (function (BlockType) {
     BlockType[BlockType["EMPTY"] = 0] = "EMPTY";
@@ -290,7 +294,7 @@ class Game {
         }
         let reward = -0.1;
         let isTerminal = false;
-        if (this.isOutOfBounds(newState.playerPos)) {
+        if (newState.playerPos.y >= this.grid.length) {
             reward = -500;
             isTerminal = true;
         }
@@ -312,20 +316,37 @@ class Game {
         return { newState, reward, isTerminal };
     }
     checkCollisionType(position) {
-        console.log("TODO checkCollisionType");
+        const left = Math.floor(position.x);
+        const right = Math.floor(position.x + 0.999);
+        const top = Math.floor(position.y);
+        const bottom = Math.floor(position.y + 0.999);
+        for (let y = top; y <= bottom; y++) {
+            for (let x = left; x <= right; x++) {
+                if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length)
+                    continue;
+                const block = this.grid[y][x];
+                if (block === BlockType.PLATFORM || block === BlockType.OBSTACLE || block === BlockType.GOAL) {
+                    return { collided: true, type: block };
+                }
+            }
+        }
         return { collided: false, type: BlockType.EMPTY };
     }
     isAtGoal(position) {
-        console.log("TODO isAtGoal");
+        const left = Math.floor(position.x);
+        const right = Math.floor(position.x + 0.999);
+        const top = Math.floor(position.y);
+        const bottom = Math.floor(position.y + 0.999);
+        for (let y = top; y <= bottom; y++) {
+            for (let x = left; x <= right; x++) {
+                if (y < 0 || x < 0 || y >= this.grid.length || x >= this.grid[0].length)
+                    continue;
+                if (this.grid[y][x] === BlockType.GOAL) {
+                    return true;
+                }
+            }
+        }
         return false;
-    }
-    isOutOfBounds(position) {
-        console.log("TODO isOutOfBounds");
-        return false;
-    }
-    runMCTS() {
-        console.log("TODO runMCTS");
-        return 0;
     }
     findGoalPos() {
         for (let y = 0; y < this.grid.length; y++) {
@@ -350,6 +371,59 @@ class Game {
                 }
             }
         }
+    }
+    hashState(state) {
+        const x = Math.floor(state.playerPos.x);
+        const y = Math.floor(state.playerPos.y);
+        const vx = Math.floor(state.playerVelocity.x);
+        const vy = Math.floor(state.playerVelocity.y);
+        return `${x},${y},${vx},${vy}`;
+    }
+    runMCTS() {
+        const stateHash = this.hashState(this.currentState);
+        // This is really ugly and copilot got this solution
+        // and its the best one I can find so ¯\_(ツ)_/¯
+        if (!this.mctsTree.has(stateHash)) {
+            this.mctsTree.set(stateHash, {
+                visits: 0,
+                totalReward: 0,
+                children: [
+                    MCTSAction.DO_NOTHING,
+                    MCTSAction.JUMP,
+                    MCTSAction.MOVE_LEFT,
+                    MCTSAction.MOVE_RIGHT
+                ].map(action => ({
+                    action, visits: 0,
+                    totalReward: 0
+                }))
+            });
+        }
+        // Simulate futures
+        for (let i = 0; i < SIMULATIONS_PER_STEP; i++) {
+            this.simulate(this.currentState, stateHash, 0);
+        }
+        // Choose best action
+        const node = this.mctsTree.get(stateHash);
+        let bestAction = 0;
+        let bestValue = -Infinity;
+        for (const child of node.children) {
+            const value = child.visits > 0 ? child.totalReward / child.visits : 0;
+            if (value > bestValue) {
+                bestValue = value;
+                bestAction = child.action;
+            }
+        }
+        this.simulationCount = this.mctsTree.size;
+        this.updateBestPath(stateHash);
+        return bestAction;
+    }
+    simulate(state, stateHash, depth) {
+        console.log("TODO simulate");
+        return 0;
+    }
+    updateBestPath(startStateHash) {
+        console.log("TODO startStateHash");
+        return;
     }
     render() {
         //clear
