@@ -222,10 +222,15 @@ class Game {
                     this.resetPlayer();
                 }
             }
+            console.log(this.simulationCount);
         }
     }
     stepGame(state, action) {
-        const newState = state;
+        const newState = {
+            playerPos: Object.assign({}, state.playerPos),
+            playerVelocity: Object.assign({}, state.playerVelocity),
+            isGrounded: state.isGrounded
+        };
         switch (action) {
             case MCTSAction.DO_NOTHING:
                 newState.playerVelocity.x = 0;

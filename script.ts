@@ -294,12 +294,17 @@ class Game {
           this.resetPlayer();
         }
       }
+      console.log(this.simulationCount);
     }
   }
 
 
   stepGame(state: GameState, action: MCTSAction): StepResult {
-    const newState = state;
+    const newState: GameState = {
+      playerPos: { ...state.playerPos },
+      playerVelocity: { ...state.playerVelocity },
+      isGrounded: state.isGrounded
+    };
 
     switch(action) {
       case MCTSAction.DO_NOTHING:
