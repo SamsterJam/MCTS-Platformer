@@ -1,13 +1,13 @@
 // Constants
 const GRID_SIZE = 64;
 const GRAVITY = 1.5;
-const JUMP_FORCE = -20;
-const PLAYER_SPEED = 8;
+const JUMP_FORCE = -22;
+const PLAYER_SPEED = 10;
 
 
 // MCTS Parameters
-const SIMULATIONS_PER_STEP = 50;
-const MAX_DEPTH = 10;
+const SIMULATIONS_PER_STEP = 1000;
+const MAX_DEPTH = 20;
 const EXPLORATION_CONSTANT = 1.4;
 
 enum BlockType {
@@ -294,7 +294,6 @@ class Game {
           this.resetPlayer();
         }
       }
-      console.log(this.simulationCount);
     }
   }
 
@@ -378,7 +377,7 @@ class Game {
       newState.isGrounded = false;
     }
 
-    let reward = -0.1;
+    let reward = -0.5;
     let isTerminal = false;
 
     if (newState.playerPos.y >= this.grid.length) {
@@ -401,6 +400,8 @@ class Game {
 
       if (newDistance < prevDistance) {
         reward += 0.5;
+      } else {
+        reward -= 0.5;
       }
       
       // Might decide to reward moving up later, we'll see
@@ -593,6 +594,39 @@ class Game {
     return totalReward;
   }
 
+  getBestPath(): Array<{x: number, y: number}> {
+    const path: Array<{x: number, y: number}> = [];
+    let currentState = this.currentState;
+    let stateHash = this.hashState(currentState);
+    
+    path.push({...currentState.playerPos});
+    
+    for (let i = 0; i < MAX_DEPTH; i++) {
+      const node = this.mctsTree.get(stateHash);
+      if (!node || node.visits === 0) break;
+      
+      let bestAction = 0;
+      let bestValue = -Infinity;
+      
+      for (const child of node.children) {
+        const value = child.visits > 0 ? child.totalReward / child.visits : 0;
+        if (value > bestValue) {
+          bestValue = value;
+          bestAction = child.action;
+        }
+      }
+      
+      const result = this.stepGame(currentState, bestAction);
+      if (result.isTerminal) break;
+      
+      currentState = result.newState;
+      path.push({...currentState.playerPos});
+      stateHash = this.hashState(currentState);
+    }
+    
+    return path;
+  }
+
 
   render(): void {
     //clear
@@ -637,6 +671,42 @@ class Game {
   renderGameplay(): void {
     this.renderBlocks(true);
 
+
+    // Draw AI's best path
+    const path = this.getBestPath();
+    if (path.length > 1) {
+      this.ctx.globalAlpha = 0.4;
+      this.ctx.fillStyle = 'yellow';
+      
+      for (let i = 1; i < path.length; i++) {
+        const x = path[i].x * GRID_SIZE + GRID_SIZE/2;
+        const y = path[i].y * GRID_SIZE + GRID_SIZE/2;
+        const radius = GRID_SIZE / 4;
+        
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        this.ctx.fill();
+      }
+      
+      this.ctx.globalAlpha = 0.3;
+      this.ctx.strokeStyle = 'yellow';
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.moveTo(
+        path[0].x * GRID_SIZE + GRID_SIZE/2, 
+        path[0].y * GRID_SIZE + GRID_SIZE/2
+      );
+      
+      for (let i = 1; i < path.length; i++) {
+        const x = path[i].x * GRID_SIZE + GRID_SIZE/2;
+        const y = path[i].y * GRID_SIZE + GRID_SIZE/2;
+        this.ctx.lineTo(x, y);
+      }
+      
+      this.ctx.stroke();
+      this.ctx.globalAlpha = 1.0;
+    }
+
     this.ctx.fillStyle = COLORS[BlockType.PLAYER];
     this.ctx.fillRect(
       Math.round(this.currentState.playerPos.x * GRID_SIZE),
@@ -644,8 +714,6 @@ class Game {
       GRID_SIZE,
       GRID_SIZE
     );
-
-    //TODO Render Path
   }
 
 
