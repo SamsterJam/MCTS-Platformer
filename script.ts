@@ -82,6 +82,8 @@ class Game {
   mouseDown = false;
   toolbar: HTMLElement;
   playBtn: HTMLElement;
+  saveBtn: HTMLElement;
+  loadBtn: HTMLElement;
   bestPath: Array<{x: number, y: number}> = [];
 
   // Game state
@@ -104,6 +106,8 @@ class Game {
 
     this.toolbar = document.getElementById('toolbar')!;
     this.playBtn = document.getElementById('playBtn')!;
+    this.saveBtn = document.getElementById('saveBtn')!;
+    this.loadBtn = document.getElementById('loadBtn')!;
 
     this.initGrid();
     this.setupEvents();
@@ -192,6 +196,63 @@ class Game {
         this.setMode(GameMode.EDIT);
       }
     });
+
+    this.saveBtn.addEventListener('click', () => {
+      this.saveLevel();
+    });
+  
+    this.loadBtn.addEventListener('click', () => {
+      this.loadLevel();
+    });
+  }
+
+  saveLevel(): void {
+    const saveData = JSON.stringify(this.grid);
+    
+    const blob = new Blob([saveData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'level.json';
+    document.body.appendChild(a);
+    a.click();
+    
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  loadLevel(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      if (!target.files || target.files.length === 0) return;
+      
+      const file = target.files[0];
+      const reader = new FileReader();
+      
+      reader.onload = (event: ProgressEvent<FileReader>) => {
+        try {
+          const content = event.target?.result as string;
+          const loadedGrid = JSON.parse(content) as BlockType[][];
+          
+          if (Array.isArray(loadedGrid) && loadedGrid.length > 0 && Array.isArray(loadedGrid[0])) {
+            this.grid = loadedGrid;
+          } else {
+            alert('Invalid level file format!');
+          }
+        } catch (error) {
+          alert('Error loading level: ' + error);
+        }
+      };
+      
+      reader.readAsText(file);
+    };
+    
+    input.click();
   }
 
   setMode(mode: GameMode): void {
@@ -212,6 +273,8 @@ class Game {
       }
 
       this.toolbar.style.display = 'none';
+      this.saveBtn.style.display = 'none';
+      this.loadBtn.style.display = 'none';
       this.playBtn.textContent = 'EDIT';
 
       this.mctsTree = new Map();
@@ -219,6 +282,8 @@ class Game {
     } else {
       this.toolbar.style.display = 'flex';
       this.playBtn.textContent = 'PLAY';
+      this.saveBtn.style.display = 'block';
+      this.loadBtn.style.display = 'block';
 
       // // Reset MCTS
       // this.mctsTree = new Map();
