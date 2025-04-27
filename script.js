@@ -6,7 +6,7 @@ const PLAYER_SPEED = 10;
 // MCTS Parameters
 const SIMULATIONS_PER_STEP = 1500;
 const MAX_DEPTH = 20;
-const EXPLORATION_CONSTANT = 50;
+const EXPLORATION_CONSTANT = 100;
 const DISCOUNT_FACTOR = 0.95;
 var BlockType;
 (function (BlockType) {
@@ -544,6 +544,10 @@ class Game {
     }
     renderGameplay() {
         this.renderBlocks(true);
+        const nodeCounter = document.getElementById('nodeCounter');
+        if (nodeCounter) {
+            nodeCounter.textContent = `Nodes: ${this.simulationCount}`;
+        }
         this.ctx.fillStyle = 'purple';
         this.mctsTree.forEach((node, stateHash) => {
             const [x, y] = stateHash.split(',').map(Number);
