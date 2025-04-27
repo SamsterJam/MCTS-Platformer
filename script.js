@@ -4,9 +4,10 @@ const GRAVITY = 1.5;
 const JUMP_FORCE = -22;
 const PLAYER_SPEED = 10;
 // MCTS Parameters
-const SIMULATIONS_PER_STEP = 1000;
+const SIMULATIONS_PER_STEP = 1500;
 const MAX_DEPTH = 20;
-const EXPLORATION_CONSTANT = 1.4;
+const EXPLORATION_CONSTANT = 50;
+const DISCOUNT_FACTOR = 0.95;
 var BlockType;
 (function (BlockType) {
     BlockType[BlockType["EMPTY"] = 0] = "EMPTY";
@@ -40,6 +41,7 @@ class Game {
         this.selectedBlock = BlockType.PLATFORM;
         this.keys = {};
         this.mouseDown = false;
+        this.bestPath = [];
         // Game state
         this.currentState = {
             playerPos: { x: 0, y: 0 },
@@ -264,7 +266,7 @@ class Game {
             if (horizontalCollision.type === BlockType.OBSTACLE || horizontalCollision.type === BlockType.GOAL) {
                 return {
                     newState,
-                    reward: horizontalCollision.type === BlockType.GOAL ? 500 : -500,
+                    reward: horizontalCollision.type === BlockType.GOAL ? 500 : -2000,
                     isTerminal: true
                 };
             }
@@ -293,29 +295,23 @@ class Game {
         else {
             newState.isGrounded = false;
         }
-        let reward = -0.5;
+        let reward = -0.1;
         let isTerminal = false;
         if (newState.playerPos.y >= this.grid.length) {
-            reward = -500;
+            reward = -2000;
             isTerminal = true;
         }
         // Reward moving towards goal
         const goalPos = this.findGoalPos();
-        if (goalPos.x != -1) {
+        if (goalPos.x !== -1) {
             const prevDistance = Math.sqrt(Math.pow(goalPos.x - prevPos.x, 2) +
                 Math.pow(goalPos.y - prevPos.y, 2));
             const newDistance = Math.sqrt(Math.pow(goalPos.x - newState.playerPos.x, 2) +
                 Math.pow(goalPos.y - newState.playerPos.y, 2));
-            if (newDistance < prevDistance) {
-                reward += 0.5;
-            }
-            else {
-                reward -= 0.5;
-            }
-            // Might decide to reward moving up later, we'll see
-            // if (newState.playerPos.y < prevPos.y) {
-            //   reward += 0.2;
-            // }
+            const distanceImprovement = prevDistance - newDistance;
+            reward += distanceImprovement * 10;
+            const proximityBonus = 20.0 / (newDistance + 5.0);
+            reward += proximityBonus;
         }
         return { newState, reward, isTerminal };
     }
@@ -377,11 +373,12 @@ class Game {
         }
     }
     hashState(state) {
-        const x = Math.floor(state.playerPos.x);
-        const y = Math.floor(state.playerPos.y);
-        const vx = Math.floor(state.playerVelocity.x);
-        const vy = Math.floor(state.playerVelocity.y);
-        return `${x},${y},${vx},${vy}`;
+        const x = Math.floor(state.playerPos.x * 100);
+        const y = Math.floor(state.playerPos.y * 100);
+        const vx = Math.floor(state.playerVelocity.x * 100);
+        const vy = Math.floor(state.playerVelocity.y * 100);
+        const g = state.isGrounded ? 1 : 0;
+        return `${x},${y},${vx},${vy},${g}`;
     }
     runMCTS() {
         const stateHash = this.hashState(this.currentState);
@@ -411,13 +408,25 @@ class Game {
         let bestAction = 0;
         let bestValue = -Infinity;
         for (const child of node.children) {
-            const value = child.visits > 0 ? child.totalReward / child.visits : 0;
+            if (child.visits < 5)
+                continue;
+            const value = child.totalReward / child.visits;
             if (value > bestValue) {
                 bestValue = value;
                 bestAction = child.action;
             }
         }
+        if (bestValue === -Infinity) {
+            let mostVisits = 0;
+            for (const child of node.children) {
+                if (child.visits > mostVisits) {
+                    mostVisits = child.visits;
+                    bestAction = child.action;
+                }
+            }
+        }
         this.simulationCount = this.mctsTree.size;
+        this.bestPath = this.calculateBestPath();
         return bestAction;
     }
     simulate(state, stateHash, depth) {
@@ -433,7 +442,7 @@ class Game {
             }
             else {
                 const exploitation = child.totalReward / child.visits;
-                const exploration = Math.sqrt(Math.log(node.visits) / child.visits);
+                const exploration = Math.sqrt(2 * Math.log(node.visits) / child.visits);
                 ucb = exploitation + (EXPLORATION_CONSTANT * exploration);
             }
             if (ucb > bestUCB) {
@@ -464,7 +473,7 @@ class Game {
             });
         }
         // Recursively simulate
-        const futureReward = this.simulate(newState, newStateHash, depth + 1);
+        const futureReward = this.simulate(newState, newStateHash, depth + 1) * DISCOUNT_FACTOR;
         const totalReward = reward + futureReward;
         // Backpropagation phase
         bestChild.visits += 1;
@@ -473,7 +482,7 @@ class Game {
         node.totalReward += totalReward;
         return totalReward;
     }
-    getBestPath() {
+    calculateBestPath() {
         const path = [];
         let currentState = this.currentState;
         let stateHash = this.hashState(currentState);
@@ -535,14 +544,28 @@ class Game {
     }
     renderGameplay() {
         this.renderBlocks(true);
+        this.ctx.fillStyle = 'purple';
+        this.mctsTree.forEach((node, stateHash) => {
+            const [x, y] = stateHash.split(',').map(Number);
+            const opacity = 0.1;
+            this.ctx.globalAlpha = opacity;
+            const px = x * GRID_SIZE / 100 + GRID_SIZE / 2;
+            const py = y * GRID_SIZE / 100 + GRID_SIZE / 2;
+            const radius = 5;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, radius, 0, 2 * Math.PI);
+            this.ctx.fill();
+        });
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.fillStyle = COLORS[BlockType.PLAYER];
+        this.ctx.fillRect(Math.round(this.currentState.playerPos.x * GRID_SIZE), Math.round(this.currentState.playerPos.y * GRID_SIZE), GRID_SIZE, GRID_SIZE);
         // Draw AI's best path
-        const path = this.getBestPath();
-        if (path.length > 1) {
+        if (this.bestPath.length > 1) {
             this.ctx.globalAlpha = 0.4;
             this.ctx.fillStyle = 'yellow';
-            for (let i = 1; i < path.length; i++) {
-                const x = path[i].x * GRID_SIZE + GRID_SIZE / 2;
-                const y = path[i].y * GRID_SIZE + GRID_SIZE / 2;
+            for (let i = 1; i < this.bestPath.length; i++) {
+                const x = this.bestPath[i].x * GRID_SIZE + GRID_SIZE / 2;
+                const y = this.bestPath[i].y * GRID_SIZE + GRID_SIZE / 2;
                 const radius = GRID_SIZE / 4;
                 this.ctx.beginPath();
                 this.ctx.arc(x, y, radius, 0, 2 * Math.PI);
@@ -552,17 +575,15 @@ class Game {
             this.ctx.strokeStyle = 'yellow';
             this.ctx.lineWidth = 3;
             this.ctx.beginPath();
-            this.ctx.moveTo(path[0].x * GRID_SIZE + GRID_SIZE / 2, path[0].y * GRID_SIZE + GRID_SIZE / 2);
-            for (let i = 1; i < path.length; i++) {
-                const x = path[i].x * GRID_SIZE + GRID_SIZE / 2;
-                const y = path[i].y * GRID_SIZE + GRID_SIZE / 2;
+            this.ctx.moveTo(this.bestPath[0].x * GRID_SIZE + GRID_SIZE / 2, this.bestPath[0].y * GRID_SIZE + GRID_SIZE / 2);
+            for (let i = 1; i < this.bestPath.length; i++) {
+                const x = this.bestPath[i].x * GRID_SIZE + GRID_SIZE / 2;
+                const y = this.bestPath[i].y * GRID_SIZE + GRID_SIZE / 2;
                 this.ctx.lineTo(x, y);
             }
             this.ctx.stroke();
             this.ctx.globalAlpha = 1.0;
         }
-        this.ctx.fillStyle = COLORS[BlockType.PLAYER];
-        this.ctx.fillRect(Math.round(this.currentState.playerPos.x * GRID_SIZE), Math.round(this.currentState.playerPos.y * GRID_SIZE), GRID_SIZE, GRID_SIZE);
     }
     renderBlocks(hidePlayer = false) {
         for (let y = 0; y < this.grid.length; y++) {
