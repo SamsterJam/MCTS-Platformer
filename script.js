@@ -4,9 +4,9 @@ const GRAVITY = 1.5;
 const JUMP_FORCE = -22;
 const PLAYER_SPEED = 10;
 // MCTS Parameters
-const SIMULATIONS_PER_STEP = 1500;
-const MAX_DEPTH = 20;
-const EXPLORATION_CONSTANT = 100;
+let SIMULATIONS_PER_STEP = 1500;
+let MAX_DEPTH = 20;
+let EXPLORATION_CONSTANT = 100;
 const DISCOUNT_FACTOR = 0.95;
 var BlockType;
 (function (BlockType) {
@@ -59,6 +59,10 @@ class Game {
         this.playBtn = document.getElementById('playBtn');
         this.saveBtn = document.getElementById('saveBtn');
         this.loadBtn = document.getElementById('loadBtn');
+        this.paramsPanel = document.getElementById('paramsPanel');
+        this.simCountInput = document.getElementById('simCount');
+        this.maxDepthInput = document.getElementById('maxDepth');
+        this.exploreRateInput = document.getElementById('exploreRate');
         this.initGrid();
         this.setupEvents();
         this.lastFrameTime = performance.now();
@@ -190,6 +194,10 @@ class Game {
     setMode(mode) {
         this.mode = mode;
         if (mode === GameMode.PLAY) {
+            SIMULATIONS_PER_STEP = parseInt(this.simCountInput.value) || 1000;
+            MAX_DEPTH = parseInt(this.maxDepthInput.value) || 20;
+            EXPLORATION_CONSTANT = parseInt(this.exploreRateInput.value) || 100;
+            console.log(`MCTS Settings: Sims=${SIMULATIONS_PER_STEP}, Depth=${MAX_DEPTH}, Explore=${EXPLORATION_CONSTANT}`);
             for (let y = 0; y < this.grid.length; y++) {
                 for (let x = 0; x < this.grid[y].length; x++) {
                     if (this.grid[y][x] === BlockType.PLAYER) {
@@ -203,6 +211,7 @@ class Game {
                 }
             }
             this.toolbar.style.display = 'none';
+            this.paramsPanel.style.display = 'none';
             this.saveBtn.style.display = 'none';
             this.loadBtn.style.display = 'none';
             this.playBtn.textContent = 'EDIT';
@@ -211,11 +220,11 @@ class Game {
         }
         else {
             this.toolbar.style.display = 'flex';
+            this.paramsPanel.style.display = 'block';
             this.playBtn.textContent = 'PLAY';
             this.saveBtn.style.display = 'block';
             this.loadBtn.style.display = 'block';
-            // // Reset MCTS
-            // this.mctsTree = new Map();
+            // Reset MCTS
             this.simulationCount = 0;
         }
     }

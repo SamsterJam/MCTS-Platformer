@@ -4,9 +4,8 @@ const GRAVITY = 1.5;
 const JUMP_FORCE = -22;
 const PLAYER_SPEED = 10;
 
-
-// MCTS Parameters
-let SIMULATIONS_PER_STEP = 1500;
+// MCTS Parameters - these will be overridden by the UI values
+let SIMULATIONS_PER_STEP = 1000;
 let MAX_DEPTH = 20;
 let EXPLORATION_CONSTANT = 100;
 const DISCOUNT_FACTOR = 0.95;
@@ -84,8 +83,8 @@ class Game {
   playBtn: HTMLElement;
   saveBtn: HTMLElement;
   loadBtn: HTMLElement;
-  paramsPanel: HTMLElement;
-  simCountInput: HTMLInputElement;
+  paramsPanel: HTMLElement; // New parameter panel
+  simCountInput: HTMLInputElement; // New inputs for parameters
   maxDepthInput: HTMLInputElement;
   exploreRateInput: HTMLInputElement;
   bestPath: Array<{x: number, y: number}> = [];
@@ -113,6 +112,7 @@ class Game {
     this.saveBtn = document.getElementById('saveBtn')!;
     this.loadBtn = document.getElementById('loadBtn')!;
     
+    // Add references to the new parameters panel and inputs
     this.paramsPanel = document.getElementById('paramsPanel')!;
     this.simCountInput = document.getElementById('simCount') as HTMLInputElement;
     this.maxDepthInput = document.getElementById('maxDepth') as HTMLInputElement;
@@ -268,6 +268,7 @@ class Game {
     this.mode = mode;
 
     if(mode === GameMode.PLAY) {
+      // Read MCTS parameters from input fields
       SIMULATIONS_PER_STEP = parseInt(this.simCountInput.value) || 1000;
       MAX_DEPTH = parseInt(this.maxDepthInput.value) || 20;
       EXPLORATION_CONSTANT = parseInt(this.exploreRateInput.value) || 100;
@@ -288,7 +289,7 @@ class Game {
       }
 
       this.toolbar.style.display = 'none';
-      this.paramsPanel.style.display = 'none';
+      this.paramsPanel.style.display = 'none'; // Hide the parameters panel in play mode
       this.saveBtn.style.display = 'none';
       this.loadBtn.style.display = 'none';
       this.playBtn.textContent = 'EDIT';
@@ -297,7 +298,7 @@ class Game {
       this.simulationCount = 0;
     } else {
       this.toolbar.style.display = 'flex';
-      this.paramsPanel.style.display = 'block';
+      this.paramsPanel.style.display = 'block'; // Show the parameters panel in edit mode
       this.playBtn.textContent = 'PLAY';
       this.saveBtn.style.display = 'block';
       this.loadBtn.style.display = 'block';
@@ -587,7 +588,7 @@ class Game {
       });
     }
     
-    // Simulate futures
+    // Simulate futures - use the parameter value from the UI
     for (let i=0; i < SIMULATIONS_PER_STEP; i++) {
       this.simulate(this.currentState, stateHash, 0);
     }
@@ -608,14 +609,14 @@ class Game {
     }
 
     if (bestValue === -Infinity) {
-    let mostVisits = 0;
-    for (const child of node.children) {
-      if (child.visits > mostVisits) {
-        mostVisits = child.visits;
-        bestAction = child.action;
+      let mostVisits = 0;
+      for (const child of node.children) {
+        if (child.visits > mostVisits) {
+          mostVisits = child.visits;
+          bestAction = child.action;
+        }
       }
     }
-  }
 
     this.simulationCount = this.mctsTree.size;
 
@@ -625,7 +626,7 @@ class Game {
   }
 
   simulate(state: GameState, stateHash: string, depth: number): number {
-    if (depth >= MAX_DEPTH) return 0;
+    if (depth >= MAX_DEPTH) return 0; // Use the parameter value from the UI
 
     const node = this.mctsTree.get(stateHash)!;
 
@@ -639,7 +640,7 @@ class Game {
       } else {
         const exploitation = child.totalReward / child.visits;
         const exploration = Math.sqrt(2*Math.log(node.visits) / child.visits);
-        ucb = exploitation + (EXPLORATION_CONSTANT * exploration);
+        ucb = exploitation + (EXPLORATION_CONSTANT * exploration); // Use the parameter value from the UI
       }
 
       if (ucb > bestUCB) {
@@ -694,7 +695,7 @@ class Game {
     
     path.push({...currentState.playerPos});
     
-    for (let i = 0; i < MAX_DEPTH; i++) {
+    for (let i = 0; i < MAX_DEPTH; i++) { // Use the parameter value from the UI
       const node = this.mctsTree.get(stateHash);
       if (!node || node.visits === 0) break;
       
@@ -718,23 +719,6 @@ class Game {
     }
     
     return path;
-  }
-
-
-  render(): void {
-    //clear
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-
-    //draw
-    this.ctx.fillStyle = '#87CEEB';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    if (this.mode === GameMode.EDIT) {
-      this.renderEditor();
-    } else {
-      this.renderGameplay();
-    }
   }
 
   renderEditor(): void {
@@ -831,6 +815,20 @@ class Game {
     }
   }
 
+  render(): void {
+    //clear
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    //draw
+    this.ctx.fillStyle = '#87CEEB';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    if (this.mode === GameMode.EDIT) {
+      this.renderEditor();
+    } else {
+      this.renderGameplay();
+    }
+  }
 
   renderBlocks(hidePlayer = false): void {
     for(let y=0; y<this.grid.length; y++){
@@ -847,7 +845,6 @@ class Game {
     }
   }
 }
-
 
 window.addEventListener('load', () => {
   new Game();
