@@ -9,7 +9,7 @@ const PLAYER_SPEED = 10;
 let SIMULATIONS_PER_STEP = 1500;
 let MAX_DEPTH = 20;
 let EXPLORATION_CONSTANT = 100;
-const DISCOUNT_FACTOR = 0.95;
+let DISCOUNT_FACTOR = 0.95;
 
 enum BlockType {
   EMPTY = 0,
@@ -88,6 +88,7 @@ class Game {
   simCountInput: HTMLInputElement;
   maxDepthInput: HTMLInputElement;
   exploreRateInput: HTMLInputElement;
+  discountFactor: HTMLInputElement;
   bestPath: Array<{x: number, y: number}> = [];
 
   // Game state
@@ -117,6 +118,7 @@ class Game {
     this.simCountInput = document.getElementById('simCount') as HTMLInputElement;
     this.maxDepthInput = document.getElementById('maxDepth') as HTMLInputElement;
     this.exploreRateInput = document.getElementById('exploreRate') as HTMLInputElement;
+    this.discountFactor = document.getElementById('discountFactor') as HTMLInputElement;
 
     this.initGrid();
     this.setupEvents();
@@ -271,6 +273,7 @@ class Game {
       SIMULATIONS_PER_STEP = parseInt(this.simCountInput.value) || 1000;
       MAX_DEPTH = parseInt(this.maxDepthInput.value) || 20;
       EXPLORATION_CONSTANT = parseInt(this.exploreRateInput.value) || 100;
+      DISCOUNT_FACTOR = parseFloat(this.discountFactor.value) || 0.95;
       
       console.log(`MCTS Settings: Sims=${SIMULATIONS_PER_STEP}, Depth=${MAX_DEPTH}, Explore=${EXPLORATION_CONSTANT}`);
       

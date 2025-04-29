@@ -7,7 +7,7 @@ const PLAYER_SPEED = 10;
 let SIMULATIONS_PER_STEP = 1500;
 let MAX_DEPTH = 20;
 let EXPLORATION_CONSTANT = 100;
-const DISCOUNT_FACTOR = 0.95;
+let DISCOUNT_FACTOR = 0.95;
 var BlockType;
 (function (BlockType) {
     BlockType[BlockType["EMPTY"] = 0] = "EMPTY";
@@ -35,24 +35,35 @@ const COLORS = {
     [BlockType.GOAL]: "gold"
 };
 class Game {
+    canvas;
+    ctx;
+    grid = [];
+    mode = GameMode.EDIT;
+    selectedBlock = BlockType.PLATFORM;
+    keys = {};
+    mouseDown = false;
+    toolbar;
+    playBtn;
+    saveBtn;
+    loadBtn;
+    paramsPanel;
+    simCountInput;
+    maxDepthInput;
+    exploreRateInput;
+    discountFactor;
+    bestPath = [];
+    // Game state
+    currentState = {
+        playerPos: { x: 0, y: 0 },
+        playerVelocity: { x: 0, y: 0 },
+        isGrounded: false
+    };
+    // MCTS
+    mctsTree = new Map();
+    simulationCount = 0;
+    lastFrameTime = 0;
+    tickRate = 60;
     constructor() {
-        this.grid = [];
-        this.mode = GameMode.EDIT;
-        this.selectedBlock = BlockType.PLATFORM;
-        this.keys = {};
-        this.mouseDown = false;
-        this.bestPath = [];
-        // Game state
-        this.currentState = {
-            playerPos: { x: 0, y: 0 },
-            playerVelocity: { x: 0, y: 0 },
-            isGrounded: false
-        };
-        // MCTS
-        this.mctsTree = new Map();
-        this.simulationCount = 0;
-        this.lastFrameTime = 0;
-        this.tickRate = 60;
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.toolbar = document.getElementById('toolbar');
@@ -63,6 +74,7 @@ class Game {
         this.simCountInput = document.getElementById('simCount');
         this.maxDepthInput = document.getElementById('maxDepth');
         this.exploreRateInput = document.getElementById('exploreRate');
+        this.discountFactor = document.getElementById('discountFactor');
         this.initGrid();
         this.setupEvents();
         this.lastFrameTime = performance.now();
@@ -172,9 +184,8 @@ class Game {
             const file = target.files[0];
             const reader = new FileReader();
             reader.onload = (event) => {
-                var _a;
                 try {
-                    const content = (_a = event.target) === null || _a === void 0 ? void 0 : _a.result;
+                    const content = event.target?.result;
                     const loadedGrid = JSON.parse(content);
                     if (Array.isArray(loadedGrid) && loadedGrid.length > 0 && Array.isArray(loadedGrid[0])) {
                         this.grid = loadedGrid;
@@ -197,6 +208,7 @@ class Game {
             SIMULATIONS_PER_STEP = parseInt(this.simCountInput.value) || 1000;
             MAX_DEPTH = parseInt(this.maxDepthInput.value) || 20;
             EXPLORATION_CONSTANT = parseInt(this.exploreRateInput.value) || 100;
+            DISCOUNT_FACTOR = parseFloat(this.discountFactor.value) || 0.95;
             console.log(`MCTS Settings: Sims=${SIMULATIONS_PER_STEP}, Depth=${MAX_DEPTH}, Explore=${EXPLORATION_CONSTANT}`);
             for (let y = 0; y < this.grid.length; y++) {
                 for (let x = 0; x < this.grid[y].length; x++) {
@@ -291,8 +303,8 @@ class Game {
     }
     stepGame(state, action) {
         const newState = {
-            playerPos: Object.assign({}, state.playerPos),
-            playerVelocity: Object.assign({}, state.playerVelocity),
+            playerPos: { ...state.playerPos },
+            playerVelocity: { ...state.playerVelocity },
             isGrounded: state.isGrounded
         };
         switch (action) {
@@ -313,7 +325,7 @@ class Game {
                 break;
         }
         newState.playerVelocity.y += GRAVITY;
-        const prevPos = Object.assign({}, newState.playerPos);
+        const prevPos = { ...newState.playerPos };
         // Horizontal
         newState.playerPos.x += newState.playerVelocity.x / this.tickRate;
         const horizontalCollision = this.checkCollisionType(newState.playerPos);
@@ -549,7 +561,7 @@ class Game {
         const path = [];
         let currentState = this.currentState;
         let stateHash = this.hashState(currentState);
-        path.push(Object.assign({}, currentState.playerPos));
+        path.push({ ...currentState.playerPos });
         for (let i = 0; i < MAX_DEPTH; i++) {
             const node = this.mctsTree.get(stateHash);
             if (!node || node.visits === 0)
@@ -567,7 +579,7 @@ class Game {
             if (result.isTerminal)
                 break;
             currentState = result.newState;
-            path.push(Object.assign({}, currentState.playerPos));
+            path.push({ ...currentState.playerPos });
             stateHash = this.hashState(currentState);
         }
         return path;
