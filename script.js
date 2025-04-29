@@ -508,7 +508,7 @@ class Game {
         if (depth >= MAX_DEPTH)
             return 0;
         const node = this.mctsTree.get(stateHash);
-        let bestChild = null;
+        let bestChildren = [];
         let bestUCB = -Infinity;
         for (const child of node.children) {
             let ucb;
@@ -522,9 +522,13 @@ class Game {
             }
             if (ucb > bestUCB) {
                 bestUCB = ucb;
-                bestChild = child;
+                bestChildren = [child];
+            }
+            else if (ucb === bestUCB) {
+                bestChildren.push(child);
             }
         }
+        const bestChild = bestChildren[Math.floor(Math.random() * bestChildren.length)];
         const action = bestChild.action;
         const { newState, reward, isTerminal } = this.stepGame(state, action);
         if (isTerminal) {

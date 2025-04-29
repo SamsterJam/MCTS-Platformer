@@ -632,7 +632,7 @@ class Game {
 
     const node = this.mctsTree.get(stateHash)!;
 
-    let bestChild: MCTSChild | null = null;
+    let bestChildren: MCTSChild[] = [];
     let bestUCB = -Infinity;
 
     for (const child of node.children) {
@@ -647,9 +647,13 @@ class Game {
 
       if (ucb > bestUCB) {
         bestUCB = ucb;
-        bestChild = child;
+        bestChildren = [child];
+      } else if (ucb === bestUCB) {
+        bestChildren.push(child);
       }
     }
+    
+    const bestChild = bestChildren[Math.floor(Math.random() * bestChildren.length)];
 
     const action = bestChild!.action;
     const { newState, reward, isTerminal } = this.stepGame(state, action);
