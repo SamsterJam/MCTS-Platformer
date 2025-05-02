@@ -35,7 +35,7 @@ The model parameters are adjustable and can be tuned to allow for the agent to b
 - **DISCOUNT_FACTOR**: How much it considers short-term vs long-term rewards
 
 
-### Core MCTS Functions
+## Core MCTS Functions
 
 #### `hashState(state: GameState): string`
 Converts continuous game state into a discrete string representation. Takes player position, velocity, and grounding status and converts them to a unique string identifier. This function is for solving the continuous state space problem by discretizing positions to 2 decimal places, allowing the MCTS algorithm to efficiently reuse previously explored states.
