@@ -27,7 +27,7 @@ tsc script.ts --target es2024
 - Play button: Toggle between edit and play modes
 - Save/Load: Export or import custom levels
 
-The model parameters are adjustable and can be tuned to allow for the agent to be able to complete different complexities of levels. The defaults are good for most of the included levels, for levels that require complex path finding we reccomend increasing the max-depth along with the exploration rate.
+The model parameters are adjustable and can be tuned to allow for the agent to be able to complete different complexities of levels. The defaults are good for most of the included levels, for levels that require complex path finding we recommend increasing the max-depth along with the exploration rate.
 
 - **SIMULATIONS_PER_STEP**: How many future simulations to run per frame
 - **MAX_DEPTH**: How far into the future the simulations will run
