@@ -2,6 +2,8 @@
 
 A simple platformer game integrated with a Monte Carlo Tree Search (MCTS) agent that solves user-created levels.
 
+![Demo Gif](.github-assets/demo.gif)
+
 ## Setup
 
 The project is a simple index.html with css and js included. All you need to do to run the program is clone/download the repo and open the index.html file with your web browser of choice.
@@ -19,6 +21,8 @@ tsc script.ts --target es2024
 - Edit Mode: Create levels with platforms, obstacles, and goals
 - Play Mode: Watch MCTS algorithm find optimal path to goal
 - Adjust simulation parameters to control AI behavior
+
+![UI Picture](.github-assets/Screenshot.png)
 
 ## Controls
 
